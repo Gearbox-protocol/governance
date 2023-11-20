@@ -5,6 +5,10 @@ pragma solidity ^0.8.0;
 
 /// @title Timelock interface
 interface ITimeLock {
+    function admin() external view returns (address);
+
+    function delay() external view returns (uint256);
+
     function queuedTransactions(bytes32 txHash) external view returns (bool);
 
     function queueTransaction(address target, uint256 value, string memory signature, bytes memory data, uint256 eta)
@@ -18,6 +22,8 @@ interface ITimeLock {
 
     function cancelTransaction(address target, uint256 value, string memory signature, bytes memory data, uint256 eta)
         external;
+
+    function setPendingAdmin(address newPendingAdmin) external;
 
     function acceptAdmin() external;
 }
