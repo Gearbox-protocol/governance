@@ -45,15 +45,15 @@ contract Governor is IGovernor {
         _;
     }
 
-    /// @dev Ensures that function can't be called by contracts unless explicitly allowed
-    modifier nonContractOnly() {
-        if (!isExecutionByContractsAllowed && msg.sender != tx.origin) revert CallerMustNotBeContractException();
-        _;
-    }
-
     /// @dev Ensures that function can only be called by the veto admin
     modifier vetoAdminOnly() {
         if (msg.sender != vetoAdmin) revert CallerNotVetoAdminException();
+        _;
+    }
+
+    /// @dev Ensures that function can't be called by contracts unless explicitly allowed
+    modifier allowedCallerTypeOnly() {
+        if (!isExecutionByContractsAllowed && msg.sender != tx.origin) revert CallerMustNotBeContractException();
         _;
     }
 
@@ -121,12 +121,12 @@ contract Governor is IGovernor {
         string calldata signature,
         bytes calldata data,
         uint256 eta
-    ) external payable override nonContractOnly returns (bytes memory) {
+    ) external payable override allowedCallerTypeOnly returns (bytes memory) {
         return _transactionAction(target, value, signature, data, eta, TxAction.Execute);
     }
 
     /// @inheritdoc IGovernor
-    function executeBatch(TxParams[] calldata txs) external payable override nonContractOnly {
+    function executeBatch(TxParams[] calldata txs) external payable override allowedCallerTypeOnly {
         uint256 batchBlock = _batchAction(txs, TxAction.Execute);
         emit ExecuteBatch(msg.sender, batchBlock);
     }
