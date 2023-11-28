@@ -69,6 +69,12 @@ interface IGovernor {
     /// @notice Emitted when `admin` is set as the new veto admin
     event UpdateVetoAdmin(address indexed admin);
 
+    /// @notice Emitted when transaction/batch execution by contracts is allowed
+    event AllowExecutionByContracts();
+
+    /// @notice Emitted when transaction/batch execution by contracts is forbidden
+    event ForbidExecutionByContracts();
+
     // ------ //
     // ERRORS //
     // ------ //
@@ -81,6 +87,9 @@ interface IGovernor {
 
     /// @notice Thrown when an account that is not the veto admin tries to cancel a transaction or a batch
     error CallerNotVetoAdminException();
+
+    /// @notice Thrown when trying to execute a trasaction or a batch from the contract when it's forbidden
+    error CallerMustNotBeContractException();
 
     /// @notice Thrown when a queue admin tries to add transactions to the batch not initiated by themselves
     error CallerNotBatchInitiatorException();
@@ -122,6 +131,9 @@ interface IGovernor {
     /// @notice Returns an address of the veto admin
     function vetoAdmin() external view returns (address);
 
+    /// @notice Whether transaction/batch execution by contracts is allowed
+    function isExecutionByContractsAllowed() external view returns (bool);
+
     /// @notice Returns info for the batch initiated in `batchBlock`
     /// @dev `initiator == address(0)` means that there was no batch initiated in that block
     function batchInfo(uint256 batchBlock) external view returns (address initiator, uint16 length, uint80 eta);
@@ -157,6 +169,7 @@ interface IGovernor {
     /// @notice Executes a queued transaction. Ensures that it is not part of any batch and forwards the call to the
     ///         timelock contract.
     /// @dev See `TxParams` for params description
+    /// @dev Can only be called by EOAs unless execution by contracts is allowed
     function executeTransaction(
         address target,
         uint256 value,
@@ -167,6 +180,7 @@ interface IGovernor {
 
     /// @notice Executes a queued batch of transactions. Ensures that `txs` is the same ordered list of transactions as
     ///         the one that was queued, and forwards all calls to the timelock contract.
+    /// @dev Can only be called by EOAs unless execution by contracts is allowed
     function executeBatch(TxParams[] calldata txs) external payable;
 
     /// @notice Cancels a queued transaction. Ensures that it is not part of any batch and forwards the call to the
@@ -203,6 +217,14 @@ interface IGovernor {
     /// @dev It's assumed that veto admin is a contract that has means to prevent it from blocking its' own update,
     ///      for example, it might be a multisig that can remove malicious signers
     function updateVetoAdmin(address admin) external;
+
+    /// @notice Allows transactions/batches to be executed by contracts
+    /// @dev Can only be called by the timelock contract
+    function allowExecutionByContracts() external;
+
+    /// @notice Forbids transactions/batches to be executed by contracts
+    /// @dev Can only be called by the timelock contract
+    function forbidExecutionByContracts() external;
 
     /// @notice Claims ownership ower the `timeLock` contract
     /// @dev Must be executed by the first queue admin after deploying this contract and setting it as timelock's owner

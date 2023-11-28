@@ -38,7 +38,7 @@ contract GovernorTest is Test {
         queueAdmin0 = makeAddr("queueAdmin0");
         queueAdmin1 = makeAddr("queueAdmin1");
 
-        governor = new Governor(timeLock, queueAdmin0, vetoAdmin);
+        governor = new Governor(timeLock, queueAdmin0, vetoAdmin, true);
 
         vm.prank(timeLock);
         ITimeLock(timeLock).setPendingAdmin(address(governor));
@@ -64,14 +64,15 @@ contract GovernorTest is Test {
         assertEq(governor.timeLock(), timeLock, "Timelock");
         assertEq(governor.vetoAdmin(), vetoAdmin, "Veto admin");
         assertEq(governor.queueAdmins(), _toDyn([queueAdmin0, queueAdmin1]), "Queue admins");
+        assertTrue(governor.isExecutionByContractsAllowed(), "Execution by contracts is forbidden");
     }
 
     function test_GOV_02_constructor_reverts_on_zero_admins() public {
         vm.expectRevert(IGovernor.AdminCantBeZeroAddressException.selector);
-        new Governor(timeLock, address(0), vetoAdmin);
+        new Governor(timeLock, address(0), vetoAdmin, true);
 
         vm.expectRevert(IGovernor.AdminCantBeZeroAddressException.selector);
-        new Governor(timeLock, queueAdmin0, address(0));
+        new Governor(timeLock, queueAdmin0, address(0), true);
     }
 
     function test_GOV_03_constructor_works_as_expected() public {
@@ -81,11 +82,15 @@ contract GovernorTest is Test {
         vm.expectEmit(true, true, true, true);
         emit IGovernor.UpdateVetoAdmin(vetoAdmin);
 
-        governor = new Governor(timeLock, queueAdmin0, vetoAdmin);
+        vm.expectEmit(true, true, true, true);
+        emit IGovernor.AllowExecutionByContracts();
+
+        governor = new Governor(timeLock, queueAdmin0, vetoAdmin, true);
 
         assertEq(governor.timeLock(), timeLock, "Timelock");
         assertEq(governor.vetoAdmin(), vetoAdmin, "Veto admin");
         assertEq(governor.queueAdmins(), _toDyn([queueAdmin0]), "Queue admins");
+        assertTrue(governor.isExecutionByContractsAllowed(), "Execution by contracts is forbidden");
     }
 
     function test_GOV_04_external_functions_have_correct_access_rights() public {
@@ -109,6 +114,12 @@ contract GovernorTest is Test {
 
         vm.expectRevert(IGovernor.CallerNotTimelockException.selector);
         governor.updateVetoAdmin(address(0));
+
+        vm.expectRevert(IGovernor.CallerNotTimelockException.selector);
+        governor.allowExecutionByContracts();
+
+        vm.expectRevert(IGovernor.CallerNotTimelockException.selector);
+        governor.forbidExecutionByContracts();
 
         vm.expectRevert(IGovernor.CallerNotQueueAdminException.selector);
         governor.claimTimeLockOwnership();
@@ -459,6 +470,53 @@ contract GovernorTest is Test {
         governor.executeTransaction(address(governor), 0, "updateVetoAdmin(address)", abi.encode(newVetoAdmin), eta);
 
         assertEq(governor.vetoAdmin(), newVetoAdmin, "Veto admin after update");
+    }
+
+    function test_GOV_19_allowExecutionByContracts_and_forbidExecutionByContracts_work_as_expected() public {
+        address executor = makeAddr("EXECUTOR");
+
+        uint256 eta = block.timestamp + delay;
+
+        vm.startPrank(queueAdmin0);
+        governor.queueTransaction(target0, 0, "signature", "data", eta);
+        governor.startBatch(uint80(eta));
+        governor.queueTransaction(target1, 0, "signature", "data", eta);
+        vm.stopPrank();
+
+        IGovernor.TxParams[] memory txs = new IGovernor.TxParams[](1);
+        txs[0] = IGovernor.TxParams(target1, 0, "signature", "data", eta);
+
+        vm.expectEmit(true, true, true, true);
+        emit IGovernor.ForbidExecutionByContracts();
+
+        vm.prank(timeLock);
+        governor.forbidExecutionByContracts();
+        assertFalse(governor.isExecutionByContractsAllowed(), "Execution by contracts is allowed");
+
+        vm.warp(eta);
+
+        // can't be executed by CA
+        vm.expectRevert(IGovernor.CallerMustNotBeContractException.selector);
+        vm.prank(executor);
+        governor.executeTransaction(target0, 0, "signature", "data", eta);
+
+        vm.expectRevert(IGovernor.CallerMustNotBeContractException.selector);
+        vm.prank(executor);
+        governor.executeBatch(txs);
+
+        // can be executed by EOA
+        vm.prank({msgSender: executor, txOrigin: executor});
+        governor.executeTransaction(target0, 0, "signature", "data", eta);
+
+        vm.prank({msgSender: executor, txOrigin: executor});
+        governor.executeBatch(txs);
+
+        vm.expectEmit(true, true, true, true);
+        emit IGovernor.AllowExecutionByContracts();
+
+        vm.prank(timeLock);
+        governor.allowExecutionByContracts();
+        assertTrue(governor.isExecutionByContractsAllowed(), "Execution by contracts is forbidden");
     }
 
     // ----- //

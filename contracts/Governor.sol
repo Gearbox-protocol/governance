@@ -10,7 +10,8 @@ import {ITimeLock} from "./interfaces/ITimeLock.sol";
 /// @title Governor
 /// @notice Extends Uniswap's timelock contract with batch queueing/execution and reworked permissions model where,
 ///         instead of a single admin to perform all actions, there are multiple queue admins, a single veto admin,
-///         and permissionless execution
+///         and permissionless execution (which can optionally be restricted to non-contract accounts to prevent
+///         unintended execution of governance proposals inside protocol functions)
 contract Governor is IGovernor {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -22,6 +23,9 @@ contract Governor is IGovernor {
 
     /// @inheritdoc IGovernor
     address public override vetoAdmin;
+
+    /// @inheritdoc IGovernor
+    bool public isExecutionByContractsAllowed;
 
     /// @inheritdoc IGovernor
     mapping(uint256 => BatchInfo) public override batchInfo;
@@ -41,6 +45,12 @@ contract Governor is IGovernor {
         _;
     }
 
+    /// @dev Ensures that function can't be called by contracts unless explicitly allowed
+    modifier nonContractOnly() {
+        if (!isExecutionByContractsAllowed && msg.sender != tx.origin) revert CallerMustNotBeContractException();
+        _;
+    }
+
     /// @dev Ensures that function can only be called by the veto admin
     modifier vetoAdminOnly() {
         if (msg.sender != vetoAdmin) revert CallerNotVetoAdminException();
@@ -51,10 +61,18 @@ contract Governor is IGovernor {
     /// @param _timeLock Timelock contract address
     /// @param _queueAdmin Address to add as the first queue admin, can't be `address(0)`
     /// @param _vetoAdmin Address to set as the veto admin, can't be `address(0)`
-    constructor(address _timeLock, address _queueAdmin, address _vetoAdmin) {
+    /// @param _allowExecutionByContracts Whether to allow transaction/batch execution by contracts
+    constructor(address _timeLock, address _queueAdmin, address _vetoAdmin, bool _allowExecutionByContracts) {
         timeLock = _timeLock;
         _addQueueAdmin(_queueAdmin);
         _updateVetoAdmin(_vetoAdmin);
+
+        if (_allowExecutionByContracts) {
+            isExecutionByContractsAllowed = true;
+            emit AllowExecutionByContracts();
+        } else {
+            emit ForbidExecutionByContracts();
+        }
     }
 
     /// @inheritdoc IGovernor
@@ -103,12 +121,12 @@ contract Governor is IGovernor {
         string calldata signature,
         bytes calldata data,
         uint256 eta
-    ) external payable override returns (bytes memory) {
+    ) external payable override nonContractOnly returns (bytes memory) {
         return _transactionAction(target, value, signature, data, eta, TxAction.Execute);
     }
 
     /// @inheritdoc IGovernor
-    function executeBatch(TxParams[] calldata txs) external payable override {
+    function executeBatch(TxParams[] calldata txs) external payable override nonContractOnly {
         uint256 batchBlock = _batchAction(txs, TxAction.Execute);
         emit ExecuteBatch(msg.sender, batchBlock);
     }
@@ -151,6 +169,22 @@ contract Governor is IGovernor {
     /// @inheritdoc IGovernor
     function updateVetoAdmin(address admin) external override timeLockOnly {
         _updateVetoAdmin(admin);
+    }
+
+    /// @inheritdoc IGovernor
+    function allowExecutionByContracts() external override timeLockOnly {
+        if (!isExecutionByContractsAllowed) {
+            isExecutionByContractsAllowed = true;
+            emit AllowExecutionByContracts();
+        }
+    }
+
+    /// @inheritdoc IGovernor
+    function forbidExecutionByContracts() external override timeLockOnly {
+        if (isExecutionByContractsAllowed) {
+            isExecutionByContractsAllowed = false;
+            emit ForbidExecutionByContracts();
+        }
     }
 
     /// @inheritdoc IGovernor
