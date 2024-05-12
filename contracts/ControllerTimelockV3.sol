@@ -4,10 +4,19 @@
 pragma solidity ^0.8.17;
 
 import {IACL} from "./interfaces/IACL.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {ACLTrait} from "@gearbox-protocol/core-v3/contracts/traits/ACLTrait.sol";
 
-import {IControllerTimelockV3, QueuedTransactionData} from "./interfaces/IControllerTimelockV3.sol";
+import {
+    IControllerTimelockV3,
+    QueuedTransactionData,
+    Policy,
+    UintRange,
+    PolicyType,
+    PolicyState,
+    PolicyUintRange,
+    PolicyAddressSet,
+    AddressSet
+} from "./interfaces/IControllerTimelockV3.sol";
 import {ICreditManagerV3} from "@gearbox-protocol/core-v3/contracts/interfaces/ICreditManagerV3.sol";
 import {ICreditFacadeV3} from "@gearbox-protocol/core-v3/contracts/interfaces/ICreditFacadeV3.sol";
 import {IPoolV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPoolV3.sol";
@@ -17,16 +26,6 @@ import {IPriceOracleV3, PriceFeedParams} from "@gearbox-protocol/core-v3/contrac
 import {ILPPriceFeedV2} from "@gearbox-protocol/core-v2/contracts/interfaces/ILPPriceFeedV2.sol";
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
-struct Policy {
-    address admin;
-    uint40 delay;
-}
-
-struct UintRange {
-    uint256 minValue;
-    uint256 maxValue;
-}
 
 /// @title Controller timelock V3
 /// @notice Controller timelock is a governance contract that allows special actors less trusted than Gearbox Governance
@@ -51,6 +50,29 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
     mapping(string => UintRange) public allowedRanges;
     mapping(string => mapping(address => EnumerableSet.AddressSet)) internal allowedAddressSets;
 
+    mapping(string => EnumerableSet.AddressSet) internal allowedAddressSetKeys;
+
+    // set all policies for this contract
+    string[17] public keys = [
+        "setExpirationDate",
+        "setLPPriceFeedLimiter",
+        "setMaxDebtPerBlockMultiplier",
+        "setMinDebtLimit",
+        "setMaxDebtLimit",
+        "setCreditManagerDebtLimit",
+        "rampLiquidationThreshold",
+        "rampLiquidationThreshold_rampDuration",
+        "forbidAdapter",
+        "setTokenLimit",
+        "setTotalDebtLimit",
+        "setTokenQuotaIncreaseFee",
+        "setWithdrawFee",
+        "setMinQuotaRate",
+        "setMaxQuotaRate",
+        "forbidBoundsUpdate",
+        "setPriceFeed"
+    ];
+
     /// @dev Minimum liquidation threshold ramp duration
     uint256 constant MIN_LT_RAMP_DURATION = 7 days;
 
@@ -72,24 +94,15 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
     constructor(address _acl, address _vetoAdmin) ACLTrait(_acl) {
         vetoAdmin = _vetoAdmin;
 
-        // set all policies for this contract
-        string[8] memory keys = [
-            "setExpirationDate",
-            "setLPPriceFeedLimiter",
-            "setMaxDebtPerBlockMultiplier",
-            "setMinDebtLimit",
-            "setMaxDebtLimit",
-            "setCreditManagerDebtLimit",
-            "rampLiquidationThreshold",
-            "forbidBoundsUpdate"
-        ];
-
         uint256 len = keys.length;
         unchecked {
             for (uint256 i; i < len; ++i) {
                 policies[keys[i]].admin = IACL(_acl).owner();
+                policies[keys[i]].policyType = PolicyType.UintRange;
             }
         }
+
+        policies["setPriceFeed"].policyType = PolicyType.AddressInSet;
     }
 
     /// @dev Ensures that function caller is the veto admin
@@ -123,7 +136,7 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
         _;
     }
 
-    modifier checkAdditionalValue(string memory policyID, uint256 value) {
+    modifier checkAdditionalValueInRange(string memory policyID, uint256 value) {
         _ensureUintInRange(policyID, value);
         _;
     }
@@ -342,7 +355,7 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
         external
         override
         policyCheckAdminValueInRange("rampLiquidationThreshold", liquidationThresholdFinal)
-        checkAdditionalValue("rampLiquidationThreshold_rampDuration", rampDuration)
+        checkAdditionalValueInRange("rampLiquidationThreshold_rampDuration", rampDuration)
     {
         _queueTransaction({
             policy: "rampLiquidationThreshold",
@@ -725,6 +738,8 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
     {
         allowedRanges[policyID].minValue = min;
         allowedRanges[policyID].maxValue = max;
+
+        emit UpdatePolicyRange(policyID, min, max);
     }
 
     function addAddressToSet(string memory policyID, address key, address newValue)
@@ -734,14 +749,67 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
     {
         EnumerableSet.AddressSet storage set = allowedAddressSets[policyID][key];
         set.add(newValue);
+
+        EnumerableSet.AddressSet storage keySet = allowedAddressSetKeys[policyID];
+        keySet.add(key);
+
+        emit AddToPolicyList(policyID, key, newValue);
     }
 
-    function removeAddressFromSet(string memory policyID, address key, address newValue)
+    function removeAddressFromSet(string memory policyID, address key, address value)
         external
         existingPolicyOnly(policyID)
         configuratorOnly
     {
         EnumerableSet.AddressSet storage set = allowedAddressSets[policyID][key];
-        set.remove(newValue);
+        set.remove(value);
+
+        if (set.length() == 0) {
+            EnumerableSet.AddressSet storage keySet = allowedAddressSetKeys[policyID];
+            keySet.remove(key);
+        }
+
+        emit RemoveFromPolicyList(policyID, key, value);
+    }
+
+    function policyState() external view returns (PolicyState memory result) {
+        uint256 uintPolicyCount;
+        uint256 addressSetPolicyCount;
+        uint256 len = keys.length;
+
+        result.policiesInRange = new PolicyUintRange[](len);
+        result.policiesAddressSet = new PolicyAddressSet[](len);
+
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                string memory id = keys[i];
+                Policy storage p = policies[id];
+                if (p.policyType == PolicyType.UintRange) {
+                    UintRange storage range = allowedRanges[id];
+                    result.policiesInRange[uintPolicyCount] = PolicyUintRange({
+                        id: id,
+                        admin: p.admin,
+                        delay: p.delay,
+                        minValue: range.minValue,
+                        maxValue: range.maxValue
+                    });
+
+                    ++uintPolicyCount;
+                } else {
+                    EnumerableSet.AddressSet storage keys_ = allowedAddressSetKeys[id];
+                    uint256 keysLen = keys_.length();
+                    AddressSet[] memory addressSet = new AddressSet[](keysLen);
+                    for (uint256 j; j < keysLen; ++j) {
+                        address key = keys_.at(j);
+                        addressSet[j] = AddressSet({key: key, values: allowedAddressSets[id][key].values()});
+                    }
+
+                    result.policiesAddressSet[addressSetPolicyCount] =
+                        PolicyAddressSet({id: id, admin: p.admin, delay: p.delay, addressSet: addressSet});
+
+                    ++addressSetPolicyCount;
+                }
+            }
+        }
     }
 }
