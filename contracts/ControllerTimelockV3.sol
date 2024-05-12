@@ -777,8 +777,8 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
         uint256 addressSetPolicyCount;
         uint256 len = keys.length;
 
-        result.policiesInRange = new PolicyUintRange[](len);
-        result.policiesAddressSet = new PolicyAddressSet[](len);
+        PolicyUintRange[] memory policiesInRange = new PolicyUintRange[](len);
+        PolicyAddressSet[] memory policiesAddressSet = new PolicyAddressSet[](len);
 
         unchecked {
             for (uint256 i; i < len; ++i) {
@@ -811,5 +811,12 @@ contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
                 }
             }
         }
+
+        assembly {
+            mstore(policiesInRange, uintPolicyCount)
+            mstore(policiesAddressSet, addressSetPolicyCount)
+        }
+
+        return PolicyState({policiesInRange: policiesInRange, policiesAddressSet: policiesAddressSet});
     }
 }
