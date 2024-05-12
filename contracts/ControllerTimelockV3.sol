@@ -3,9 +3,10 @@
 // (c) Gearbox Foundation, 2023.
 pragma solidity ^0.8.17;
 
+import {IACL} from "./interfaces/IACL.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ACLTrait} from "@gearbox-protocol/core-v3/contracts/traits/ACLTrait.sol";
 
-import {PolicyManagerV3} from "./PolicyManagerV3.sol";
 import {IControllerTimelockV3, QueuedTransactionData} from "./interfaces/IControllerTimelockV3.sol";
 import {ICreditManagerV3} from "@gearbox-protocol/core-v3/contracts/interfaces/ICreditManagerV3.sol";
 import {ICreditFacadeV3} from "@gearbox-protocol/core-v3/contracts/interfaces/ICreditFacadeV3.sol";
@@ -15,6 +16,18 @@ import {IGaugeV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IGaugeV3.
 import {IPriceOracleV3, PriceFeedParams} from "@gearbox-protocol/core-v3/contracts/interfaces/IPriceOracleV3.sol";
 import {ILPPriceFeedV2} from "@gearbox-protocol/core-v2/contracts/interfaces/ILPPriceFeedV2.sol";
 
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
+struct Policy {
+    address admin;
+    uint40 delay;
+}
+
+struct UintRange {
+    uint256 minValue;
+    uint256 maxValue;
+}
+
 /// @title Controller timelock V3
 /// @notice Controller timelock is a governance contract that allows special actors less trusted than Gearbox Governance
 ///         to modify system parameters within set boundaries. This is mostly related to risk parameters that should be
@@ -23,9 +36,20 @@ import {ILPPriceFeedV2} from "@gearbox-protocol/core-v2/contracts/interfaces/ILP
 /// @dev The contract uses `PolicyManager` as its underlying engine to set parameter change boundaries and conditions.
 ///      In order to schedule a change for a particular contract / function combination, a policy needs to be defined
 ///      for it. The policy also determines the address that can change a particular parameter.
-contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
+contract ControllerTimelockV3 is ACLTrait, IControllerTimelockV3 {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     /// @notice Contract version
-    uint256 public constant override version = 3_1;
+    uint256 public constant override version = 3_10;
+
+    error PolicyNotExistsException();
+    error CallerIsNotPolicyAdminException();
+    error UintIsNotInRange(uint256, uint256);
+    error AddressIsNotInSet(address[]);
+
+    mapping(string => Policy) public policies;
+    mapping(string => UintRange) public allowedRanges;
+    mapping(string => mapping(address => EnumerableSet.AddressSet)) internal allowedAddressSets;
 
     /// @dev Minimum liquidation threshold ramp duration
     uint256 constant MIN_LT_RAMP_DURATION = 7 days;
@@ -37,16 +61,35 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     address public override vetoAdmin;
 
     /// @notice Mapping from address to their status as executor
-    mapping(address => bool) public override isExecutor;
+    EnumerableSet.AddressSet internal _executors;
 
     /// @notice Mapping from transaction hashes to their data
     mapping(bytes32 => QueuedTransactionData) public override queuedTransactions;
 
     /// @notice Constructor
-    /// @param _addressProvider Address of the address provider
+    /// @param _acl Address of acl contract
     /// @param _vetoAdmin Admin that can cancel transactions
-    constructor(address _addressProvider, address _vetoAdmin) PolicyManagerV3(_addressProvider) {
+    constructor(address _acl, address _vetoAdmin) ACLTrait(_acl) {
         vetoAdmin = _vetoAdmin;
+
+        // set all policies for this contract
+        string[8] memory keys = [
+            "setExpirationDate",
+            "setLPPriceFeedLimiter",
+            "setMaxDebtPerBlockMultiplier",
+            "setMinDebtLimit",
+            "setMaxDebtLimit",
+            "setCreditManagerDebtLimit",
+            "rampLiquidationThreshold",
+            "forbidBoundsUpdate"
+        ];
+
+        uint256 len = keys.length;
+        unchecked {
+            for (uint256 i; i < len; ++i) {
+                policies[keys[i]].admin = IACL(_acl).owner();
+            }
+        }
     }
 
     /// @dev Ensures that function caller is the veto admin
@@ -62,6 +105,66 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
         }
     }
 
+    /// @dev Performs parameter checks, with policy retrieved based on policy UID
+    modifier existingPolicyOnly(string memory policyID) {
+        _ensurePolicyExists(policyID);
+        _;
+    }
+
+    /// @dev Performs parameter checks, with policy retrieved based on policy UID
+    modifier policyAdminOnly(string memory policyID) {
+        _ensurePolicyAdmin(policyID);
+        _;
+    }
+
+    modifier policyCheckAdminValueInRange(string memory policyID, uint256 value) {
+        _ensurePolicyAdmin(policyID);
+        _ensureUintInRange(policyID, value);
+        _;
+    }
+
+    modifier checkAdditionalValue(string memory policyID, uint256 value) {
+        _ensureUintInRange(policyID, value);
+        _;
+    }
+
+    modifier policyCheckAdminValueInList(string memory policyID, address key, address value) {
+        _ensurePolicyAdmin(policyID);
+        _ensureAddressInList(policyID, key, value);
+        _;
+    }
+
+    function _ensurePolicyExists(string memory policyID) internal view {
+        if (policies[policyID].admin == address(0)) {
+            revert PolicyNotExistsException();
+        }
+    }
+
+    function _ensurePolicyAdmin(string memory policyID) internal view {
+        address admin = policies[policyID].admin;
+        if (admin == address(0)) {
+            revert PolicyNotExistsException();
+        }
+
+        if (msg.sender != admin) {
+            revert CallerIsNotPolicyAdminException();
+        }
+    }
+
+    function _ensureUintInRange(string memory policyID, uint256 value) internal view {
+        UintRange storage range = allowedRanges[policyID];
+        if (value < range.minValue || value > range.maxValue) {
+            revert UintIsNotInRange(range.minValue, range.maxValue);
+        }
+    }
+
+    function _ensureAddressInList(string memory policyID, address key, address value) internal view {
+        EnumerableSet.AddressSet storage set = allowedAddressSets[policyID][key];
+        if (!set.contains(value)) {
+            revert AddressIsNotInSet(set.values());
+        }
+    }
+
     // -------- //
     // QUEUEING //
     // -------- //
@@ -71,13 +174,13 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the expiration date for
     /// @param expirationDate The new expiration date
-    function setExpirationDate(address creditManager, uint40 expirationDate) external override {
+    function setExpirationDate(address creditManager, uint40 expirationDate)
+        external
+        override
+        policyCheckAdminValueInRange("setExpirationDate", uint256(expirationDate))
+    {
         address creditConfigurator = ICreditManagerV3(creditManager).creditConfigurator();
         IPoolV3 pool = IPoolV3(ICreditManagerV3(creditManager).pool());
-
-        if (!_checkPolicy("setExpirationDate", uint256(expirationDate))) {
-            revert ParameterChecksFailedException(); // U:[CT-1]
-        }
 
         uint256 totalBorrowed = pool.creditManagerBorrowed(address(creditManager));
 
@@ -86,10 +189,10 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
         }
 
         _queueTransaction({
+            policy: "setExpirationDate",
             target: creditConfigurator,
             signature: "setExpirationDate(uint40)",
             data: abi.encode(expirationDate),
-            delay: _getPolicyDelay("setExpirationDate"),
             sanityCheckCallData: abi.encodeCall(this.getExpirationDate, (creditManager))
         }); // U:[CT-1]
     }
@@ -104,16 +207,16 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param priceFeed The price feed to update the limiter in
     /// @param lowerBound The new limiter lower bound value
-    function setLPPriceFeedLimiter(address priceFeed, uint256 lowerBound) external override {
-        if (!_checkPolicy("setLPPriceFeedLimiter", lowerBound)) {
-            revert ParameterChecksFailedException(); // U:[CT-2]
-        }
-
+    function setLPPriceFeedLimiter(address priceFeed, uint256 lowerBound)
+        external
+        override
+        policyCheckAdminValueInRange("setLPPriceFeedLimiter", lowerBound)
+    {
         _queueTransaction({
+            policy: "setLPPriceFeedLimiter",
             target: priceFeed,
             signature: "setLimiter(uint256)",
             data: abi.encode(lowerBound),
-            delay: _getPolicyDelay("setLPPriceFeedLimiter"),
             sanityCheckCallData: abi.encodeCall(this.getPriceFeedLowerBound, (priceFeed))
         }); // U:[CT-2]
     }
@@ -128,20 +231,16 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the multiplier for
     /// @param multiplier The new multiplier value
-    function setMaxDebtPerBlockMultiplier(address creditManager, uint8 multiplier) external override {
-        address creditConfigurator = ICreditManagerV3(creditManager).creditConfigurator();
-
-        address creditFacade = ICreditManagerV3(creditManager).creditFacade();
-
-        if (!_checkPolicy("setMaxDebtPerBlockMultiplier", uint256(multiplier))) {
-            revert ParameterChecksFailedException(); // U:[CT-3]
-        }
-
+    function setMaxDebtPerBlockMultiplier(address creditManager, uint8 multiplier)
+        external
+        override
+        policyCheckAdminValueInRange("setMaxDebtPerBlockMultiplier", uint256(multiplier))
+    {
         _queueTransaction({
-            target: creditConfigurator,
+            policy: "setMaxDebtPerBlockMultiplier",
+            target: ICreditManagerV3(creditManager).creditConfigurator(),
             signature: "setMaxDebtPerBlockMultiplier(uint8)",
             data: abi.encode(multiplier),
-            delay: _getPolicyDelay("setMaxDebtPerBlockMultiplier"),
             sanityCheckCallData: abi.encodeCall(this.getMaxDebtPerBlockMultiplier, (creditManager))
         }); // U:[CT-3]
     }
@@ -156,18 +255,16 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the limits for
     /// @param minDebt The new minimal debt amount
-    function setMinDebtLimit(address creditManager, uint128 minDebt) external override {
-        address creditConfigurator = ICreditManagerV3(creditManager).creditConfigurator();
-
-        if (!_checkPolicy("setMinDebtLimit", uint256(minDebt))) {
-            revert ParameterChecksFailedException(); // U:[CT-4A]
-        }
-
+    function setMinDebtLimit(address creditManager, uint128 minDebt)
+        external
+        override
+        policyCheckAdminValueInRange("setMinDebtLimit", uint256(minDebt))
+    {
         _queueTransaction({
-            target: creditConfigurator,
+            policy: "setMinDebtLimit",
+            target: ICreditManagerV3(creditManager).creditConfigurator(),
             signature: "setMinDebtLimit(uint128)",
             data: abi.encode(minDebt),
-            delay: _getPolicyDelay("setMinDebtLimit"),
             sanityCheckCallData: abi.encodeCall(this.getMinDebtLimit, (creditManager))
         }); // U:[CT-4A]
     }
@@ -183,18 +280,16 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the limits for
     /// @param maxDebt The new maximal debt amount
-    function setMaxDebtLimit(address creditManager, uint128 maxDebt) external override {
-        address creditConfigurator = ICreditManagerV3(creditManager).creditConfigurator();
-
-        if (!_checkPolicy("setMaxDebtLimit", uint256(maxDebt))) {
-            revert ParameterChecksFailedException(); // U:[CT-4B]
-        }
-
+    function setMaxDebtLimit(address creditManager, uint128 maxDebt)
+        external
+        override
+        policyCheckAdminValueInRange("setMaxDebtLimit", uint256(maxDebt))
+    {
         _queueTransaction({
-            target: creditConfigurator,
+            policy: "setMinDebtLimit",
+            target: ICreditManagerV3(creditManager).creditConfigurator(),
             signature: "setMaxDebtLimit(uint128)",
             data: abi.encode(maxDebt),
-            delay: _getPolicyDelay("setMaxDebtLimit"),
             sanityCheckCallData: abi.encodeCall(this.getMaxDebtLimit, (creditManager))
         }); // U:[CT-4B]
     }
@@ -210,24 +305,23 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the debt limit for
     /// @param debtLimit The new debt limit
-    function setCreditManagerDebtLimit(address creditManager, uint256 debtLimit) external override {
-        IPoolV3 pool = IPoolV3(ICreditManagerV3(creditManager).pool());
-
-        if (!_checkPolicy("setCreditManagerDebtLimit", uint256(debtLimit))) {
-            revert ParameterChecksFailedException(); // U:[CT-5]
-        }
-
+    function setCreditManagerDebtLimit(address creditManager, uint256 debtLimit)
+        external
+        override
+        policyCheckAdminValueInRange("setCreditManagerDebtLimit", uint256(debtLimit))
+    {
         _queueTransaction({
-            target: address(pool),
+            policy: "setCreditManagerDebtLimit",
+            target: ICreditManagerV3(creditManager).pool(),
             signature: "setCreditManagerDebtLimit(address,uint256)",
             data: abi.encode(address(creditManager), debtLimit),
-            delay: _getPolicyDelay("setCreditManagerDebtLimit"),
-            sanityCheckCallData: abi.encodeCall(this.getCreditManagerDebtLimit, (address(pool), creditManager))
+            sanityCheckCallData: abi.encodeCall(this.getCreditManagerDebtLimit, (creditManager))
         }); // U:[CT-5]
     }
 
     /// @dev Retrieves the current total debt limit for Credit Manager from its pool
-    function getCreditManagerDebtLimit(address pool, address creditManager) public view returns (uint256) {
+    function getCreditManagerDebtLimit(address creditManager) public view returns (uint256) {
+        address pool = ICreditManagerV3(creditManager).pool();
         return IPoolV3(pool).creditManagerDebtLimit(creditManager);
     }
 
@@ -244,21 +338,17 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
         uint16 liquidationThresholdFinal,
         uint40 rampStart,
         uint24 rampDuration
-    ) external override {
-        uint256 delay = _getPolicyDelay("rampLiquidationThreshold");
-
-        if (
-            !_checkPolicy("rampLiquidationThreshold", uint256(liquidationThresholdFinal))
-                || rampDuration < MIN_LT_RAMP_DURATION || rampStart < block.timestamp + delay
-        ) {
-            revert ParameterChecksFailedException(); // U: [CT-6]
-        }
-
+    )
+        external
+        override
+        policyCheckAdminValueInRange("rampLiquidationThreshold", liquidationThresholdFinal)
+        checkAdditionalValue("rampLiquidationThreshold_rampDuration", rampDuration)
+    {
         _queueTransaction({
+            policy: "rampLiquidationThreshold",
             target: ICreditManagerV3(creditManager).creditConfigurator(),
             signature: "rampLiquidationThreshold(address,uint16,uint40,uint24)",
             data: abi.encode(token, liquidationThresholdFinal, rampStart, rampDuration),
-            delay: delay,
             sanityCheckCallData: abi.encodeCall(this.getLTRampParamsHash, (creditManager, token))
         }); // U: [CT-6]
     }
@@ -275,20 +365,12 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to forbid an adapter for
     /// @param adapter Address of adapter to forbid
-    function forbidAdapter(address creditManager, address adapter) external override {
-        address creditConfigurator = ICreditManagerV3(creditManager).creditConfigurator();
-
-        // For `forbidAdapter`, there is no value to modify
-        // A policy check simply verifies that this controller has access to the function in a given group
-        if (!_checkPolicy("forbidAdapter", 0)) {
-            revert ParameterChecksFailedException(); // U: [CT-10]
-        }
-
+    function forbidAdapter(address creditManager, address adapter) external override policyAdminOnly("forbidAdapter") {
         _queueTransaction({
-            target: creditConfigurator,
+            policy: "forbidAdapter",
+            target: ICreditManagerV3(creditManager).creditConfigurator(),
             signature: "forbidAdapter(address)",
             data: abi.encode(adapter),
-            delay: _getPolicyDelay("forbidAdapter"),
             sanityCheckCallData: ""
         }); // U: [CT-10]
     }
@@ -299,24 +381,23 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     /// @param pool Pool to update the limit for
     /// @param token Token to update the limit for
     /// @param limit The new value of the limit
-    function setTokenLimit(address pool, address token, uint96 limit) external override {
-        address poolQuotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-
-        if (!_checkPolicy("setTokenLimit", uint256(limit))) {
-            revert ParameterChecksFailedException(); // U: [CT-11]
-        }
-
+    function setTokenLimit(address pool, address token, uint96 limit)
+        external
+        override
+        policyCheckAdminValueInRange("setTokenLimit", limit)
+    {
         _queueTransaction({
-            target: poolQuotaKeeper,
+            policy: "setTokenLimit",
+            target: IPoolV3(pool).poolQuotaKeeper(),
             signature: "setTokenLimit(address,uint96)",
             data: abi.encode(token, limit),
-            delay: _getPolicyDelay("setTokenLimit"),
-            sanityCheckCallData: abi.encodeCall(this.getTokenLimit, (poolQuotaKeeper, token))
+            sanityCheckCallData: abi.encodeCall(this.getTokenLimit, (pool, token))
         }); // U: [CT-11]
     }
 
     /// @dev Retrieves the per-token quota limit from pool quota keeper
-    function getTokenLimit(address poolQuotaKeeper, address token) public view returns (uint96) {
+    function getTokenLimit(address pool, address token) public view returns (uint96) {
+        address poolQuotaKeeper = IPoolV3(pool).poolQuotaKeeper();
         (,,,, uint96 oldLimit,) = IPoolQuotaKeeperV3(poolQuotaKeeper).getTokenQuotaParams(token);
         return oldLimit;
     }
@@ -327,24 +408,23 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     /// @param pool Pool to update the limit for
     /// @param token Token to update the limit for
     /// @param quotaIncreaseFee The new value of the fee in bp
-    function setTokenQuotaIncreaseFee(address pool, address token, uint16 quotaIncreaseFee) external override {
-        address poolQuotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-
-        if (!_checkPolicy("setTokenQuotaIncreaseFee", uint256(quotaIncreaseFee))) {
-            revert ParameterChecksFailedException(); // U: [CT-12]
-        }
-
+    function setTokenQuotaIncreaseFee(address pool, address token, uint16 quotaIncreaseFee)
+        external
+        override
+        policyCheckAdminValueInRange("setTokenQuotaIncreaseFee", quotaIncreaseFee)
+    {
         _queueTransaction({
-            target: poolQuotaKeeper,
+            policy: "setTokenQuotaIncreaseFee",
+            target: IPoolV3(pool).poolQuotaKeeper(),
             signature: "setTokenQuotaIncreaseFee(address,uint16)",
             data: abi.encode(token, quotaIncreaseFee),
-            delay: _getPolicyDelay("setTokenQuotaIncreaseFee"),
-            sanityCheckCallData: abi.encodeCall(this.getTokenQuotaIncreaseFee, (poolQuotaKeeper, token))
+            sanityCheckCallData: abi.encodeCall(this.getTokenQuotaIncreaseFee, (pool, token))
         }); // U: [CT-12]
     }
 
     /// @dev Retrieves the quota increase fee for a token
-    function getTokenQuotaIncreaseFee(address poolQuotaKeeper, address token) public view returns (uint16) {
+    function getTokenQuotaIncreaseFee(address pool, address token) public view returns (uint16) {
+        address poolQuotaKeeper = IPoolV3(pool).poolQuotaKeeper();
         (,, uint16 quotaIncreaseFee,,,) = IPoolQuotaKeeperV3(poolQuotaKeeper).getTokenQuotaParams(token);
         return quotaIncreaseFee;
     }
@@ -354,18 +434,16 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param newLimit The new value of the limit
-    function setTotalDebtLimit(address pool, uint256 newLimit) external override {
-        uint256 totalDebtLimitOld = getTotalDebtLimit(pool);
-
-        if (!_checkPolicy("setTotalDebtLimit", uint256(newLimit))) {
-            revert ParameterChecksFailedException(); // U: [CT-13]
-        }
-
+    function setTotalDebtLimit(address pool, uint256 newLimit)
+        external
+        override
+        policyCheckAdminValueInRange("setTotalDebtLimit", uint256(newLimit))
+    {
         _queueTransaction({
+            policy: "setTotalDebtLimit",
             target: pool,
             signature: "setTotalDebtLimit(uint256)",
             data: abi.encode(newLimit),
-            delay: _getPolicyDelay("setTotalDebtLimit"),
             sanityCheckCallData: abi.encodeCall(this.getTotalDebtLimit, (pool))
         }); // U: [CT-13]
     }
@@ -380,16 +458,16 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param newFee The new value of the fee in bp
-    function setWithdrawFee(address pool, uint256 newFee) external override {
-        if (!_checkPolicy("setWithdrawFee", newFee)) {
-            revert ParameterChecksFailedException(); // U: [CT-14]
-        }
-
+    function setWithdrawFee(address pool, uint256 newFee)
+        external
+        override
+        policyCheckAdminValueInRange("setWithdrawFee", newFee)
+    {
         _queueTransaction({
+            policy: "setWithdrawFee",
             target: pool,
             signature: "setWithdrawFee(uint256)",
             data: abi.encode(newFee),
-            delay: _getPolicyDelay("setWithdrawFee"),
             sanityCheckCallData: abi.encodeCall(this.getWithdrawFee, (pool))
         }); // U: [CT-14]
     }
@@ -405,25 +483,23 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     /// @param pool Pool to update the limit for
     /// @param token Token to set the new fee for
     /// @param rate The new minimal rate
-    function setMinQuotaRate(address pool, address token, uint16 rate) external override {
-        address poolQuotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-        address gauge = IPoolQuotaKeeperV3(poolQuotaKeeper).gauge();
-
-        if (!_checkPolicy("setMinQuotaRate", uint256(rate))) {
-            revert ParameterChecksFailedException(); // U: [CT-15A]
-        }
-
+    function setMinQuotaRate(address pool, address token, uint16 rate)
+        external
+        override
+        policyCheckAdminValueInRange("setMinQuotaRate", uint256(rate))
+    {
         _queueTransaction({
-            target: gauge,
+            policy: "setMinQuotaRate",
+            target: IPoolQuotaKeeperV3(IPoolV3(pool).poolQuotaKeeper()).gauge(),
             signature: "changeQuotaMinRate(address,uint16)",
             data: abi.encode(token, rate),
-            delay: _getPolicyDelay("setMinQuotaRate"),
-            sanityCheckCallData: abi.encodeCall(this.getMinQuotaRate, (gauge, token))
+            sanityCheckCallData: abi.encodeCall(this.getMinQuotaRate, (pool, token))
         }); // U: [CT-15A]
     }
 
     /// @dev Retrieves the current minimal quota rate for a token in a gauge
-    function getMinQuotaRate(address gauge, address token) public view returns (uint16) {
+    function getMinQuotaRate(address pool, address token) public view returns (uint16) {
+        address gauge = IPoolQuotaKeeperV3(IPoolV3(pool).poolQuotaKeeper()).gauge();
         (uint16 minRate,,,) = IGaugeV3(gauge).quotaRateParams(token);
         return minRate;
     }
@@ -434,27 +510,23 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     /// @param pool Pool to update the limit for
     /// @param token Token to set the new fee for
     /// @param rate The new maximal rate
-    function setMaxQuotaRate(address pool, address token, uint16 rate) external override {
-        address poolQuotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-        address gauge = IPoolQuotaKeeperV3(poolQuotaKeeper).gauge();
-
-        uint16 maxRateCurrent = getMaxQuotaRate(gauge, token);
-
-        if (!_checkPolicy("setMaxQuotaRate", uint256(rate))) {
-            revert ParameterChecksFailedException(); // U: [CT-15B]
-        }
-
+    function setMaxQuotaRate(address pool, address token, uint16 rate)
+        external
+        override
+        policyCheckAdminValueInRange("setMaxQuotaRate", uint256(rate))
+    {
         _queueTransaction({
-            target: gauge,
+            policy: "setMaxQuotaRate",
+            target: IPoolQuotaKeeperV3(IPoolV3(pool).poolQuotaKeeper()).gauge(),
             signature: "changeQuotaMaxRate(address,uint16)",
             data: abi.encode(token, rate),
-            delay: _getPolicyDelay("setMaxQuotaRate"),
-            sanityCheckCallData: abi.encodeCall(this.getMaxQuotaRate, (gauge, token))
+            sanityCheckCallData: abi.encodeCall(this.getMaxQuotaRate, (pool, token))
         }); // U: [CT-15B]
     }
 
     /// @dev Retrieves the current maximal quota rate for a token in a gauge
-    function getMaxQuotaRate(address gauge, address token) public view returns (uint16) {
+    function getMaxQuotaRate(address pool, address token) public view returns (uint16) {
+        address gauge = IPoolQuotaKeeperV3(IPoolV3(pool).poolQuotaKeeper()).gauge();
         (, uint16 maxRate,,) = IGaugeV3(gauge).quotaRateParams(token);
         return maxRate;
     }
@@ -463,16 +535,12 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     /// @dev Requires the policy for keccak(group(priceFeed), "UPDATE_BOUNDS_ALLOWED") to be enabled,
     ///      otherwise auto-fails the check
     /// @param priceFeed The price feed to forbid bounds update for
-    function forbidBoundsUpdate(address priceFeed) external override {
-        if (!_checkPolicy("forbidBoundsUpdate", 0)) {
-            revert ParameterChecksFailedException(); // U:[CT-16]
-        }
-
+    function forbidBoundsUpdate(address priceFeed) external override policyAdminOnly("forbidBoundsUpdate") {
         _queueTransaction({
+            policy: "forbidBoundsUpdate",
             target: priceFeed,
             signature: "forbidBoundsUpdate()",
             data: "",
-            delay: _getPolicyDelay("forbidBoundsUpdate"),
             sanityCheckCallData: ""
         }); // U:[CT-16]
     }
@@ -483,20 +551,13 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     function setPriceFeed(address priceOracle, address token, address priceFeed, uint32 stalenessPeriod)
         external
         override
+        policyCheckAdminValueInList("setPriceFeed", token, priceFeed)
     {
-        string memory policyID = string(abi.encodePacked("setPriceFeed_", Strings.toHexString(token)));
-
-        uint256 priceFeedHash = uint256(keccak256(abi.encode(priceFeed, stalenessPeriod)));
-
-        if (!_checkPolicy(policyID, uint256(priceFeedHash))) {
-            revert ParameterChecksFailedException();
-        }
-
         _queueTransaction({
+            policy: "setPriceFeed",
             target: priceOracle,
             signature: "setPriceFeed(address,address,uint32)",
             data: abi.encode(token, priceFeed, stalenessPeriod),
-            delay: _getPolicyDelay(policyID),
             sanityCheckCallData: abi.encodeCall(this.getCurrentPriceFeedHash, (priceOracle, token))
         });
     }
@@ -512,13 +573,13 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     /// @param data The call data
     /// @return Hash of the queued transaction
     function _queueTransaction(
+        string memory policy,
         address target,
         string memory signature,
         bytes memory data,
-        uint256 delay,
         bytes memory sanityCheckCallData
     ) internal returns (bytes32) {
-        uint256 eta = block.timestamp + delay;
+        uint256 eta = block.timestamp + policies[policy].delay;
 
         bytes32 txHash = keccak256(abi.encode(msg.sender, target, signature, data));
         uint256 sanityCheckValue;
@@ -575,7 +636,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
             revert TxNotQueuedException(); // U: [CT-7]
         }
 
-        if (msg.sender != qtd.initiator && !isExecutor[msg.sender]) {
+        if (msg.sender != qtd.initiator && !_executors.contains(msg.sender)) {
             revert CallerNotExecutorException(); // U: [CT-9]
         }
 
@@ -635,10 +696,52 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Changes status of an address as an executor
-    function setExecutor(address executorAddress, bool status) external override configuratorOnly {
-        if (isExecutor[executorAddress] != status) {
-            isExecutor[executorAddress] = status;
-            emit SetExecutor(executorAddress, status);
+    function addExecutor(address executorAddress) external override configuratorOnly {
+        if (!_executors.contains(executorAddress)) {
+            _executors.add(executorAddress);
+            emit AddExecutor(executorAddress);
         }
+    }
+
+    function removeExecutor(address executorAddress) external override configuratorOnly {
+        if (_executors.contains(executorAddress)) {
+            _executors.remove(executorAddress);
+            emit RemoveExecutor(executorAddress);
+        }
+    }
+
+    function isExecutor(address addr) external view override returns (bool) {
+        return _executors.contains(addr);
+    }
+
+    function executors() external view override returns (address[] memory) {
+        return _executors.values();
+    }
+
+    function setRange(string memory policyID, uint256 min, uint256 max)
+        external
+        existingPolicyOnly(policyID)
+        configuratorOnly
+    {
+        allowedRanges[policyID].minValue = min;
+        allowedRanges[policyID].maxValue = max;
+    }
+
+    function addAddressToSet(string memory policyID, address key, address newValue)
+        external
+        existingPolicyOnly(policyID)
+        configuratorOnly
+    {
+        EnumerableSet.AddressSet storage set = allowedAddressSets[policyID][key];
+        set.add(newValue);
+    }
+
+    function removeAddressFromSet(string memory policyID, address key, address newValue)
+        external
+        existingPolicyOnly(policyID)
+        configuratorOnly
+    {
+        EnumerableSet.AddressSet storage set = allowedAddressSets[policyID][key];
+        set.remove(newValue);
     }
 }

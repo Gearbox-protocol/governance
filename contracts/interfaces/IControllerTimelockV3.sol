@@ -21,7 +21,10 @@ interface IControllerTimelockV3Events {
     event SetVetoAdmin(address indexed newAdmin);
 
     /// @notice Emitted when an address' status as executor is changed
-    event SetExecutor(address indexed executor, bool status);
+    event AddExecutor(address indexed executor);
+
+    /// @notice Emitted when an address' status as executor is changed
+    event RemoveExecutor(address indexed executor);
 
     /// @notice Emitted when a transaction is queued
     event QueueTransaction(
@@ -136,5 +139,9 @@ interface IControllerTimelockV3 is IControllerTimelockV3Events, IControllerTimel
 
     function setVetoAdmin(address newAdmin) external;
 
-    function setExecutor(address executor, bool status) external;
+    function addExecutor(address executorAddress) external;
+
+    function removeExecutor(address executorAddress) external;
+
+    function executors() external view returns (address[] memory);
 }
