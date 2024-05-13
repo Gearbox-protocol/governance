@@ -138,13 +138,16 @@ contract MarketConfigurator is ACLTrait, IMarketConfiguratorV3 {
 
         address pqk = PoolFactoryV3(poolFactory).deployPoolQuotaKeeper(pool, latestVersions[AP_POOL_QUOTA_KEEPER], salt);
 
-        address rateKeeper =
-            PoolFactoryV3(poolFactory).deployPoolQuotaKeeper(pool, latestVersions[AP_POOL_RATE_KEEPER], salt);
-        //    IPoolV3.setPoolQuotaKeeper(address newPoolQuotaKeeper)
+        address rateKeeper = PoolFactoryV3(poolFactory).deployRateKeeper(
+            pool, rateKeeperType, latestVersions[string.concat(AP_POOL_RATE_KEEPER, "_", rateKeeperType)], salt
+        );
 
         IContractsRegister(contractsRegister).addPool(pool);
 
         PoolV3(pool).setController(controller);
+        PoolV3(pool).setPoolQuotaKeeper(pqk);
+
+        IPoolQuotaKeeperV3(pqk).setGauge(rateKeeper);
 
         priceOracles[pool] =
             PriceOracleFactoryV3(priceOracleFactory).deployPriceOracle(acl, latestVersions[AP_PRICE_ORACLE], salt);

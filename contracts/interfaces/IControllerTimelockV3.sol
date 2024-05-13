@@ -3,7 +3,23 @@
 // (c) Gearbox Foundation, 2023.
 pragma solidity ^0.8.17;
 
-import {IVersion} from "@gearbox-protocol/core-v2/contracts/interfaces/IVersion.sol";
+import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
+
+enum PolicyType {
+    UintRange,
+    AddressInSet
+}
+
+struct Policy {
+    address admin;
+    uint40 delay;
+    PolicyType policyType;
+}
+
+struct UintRange {
+    uint256 minValue;
+    uint256 maxValue;
+}
 
 struct QueuedTransactionData {
     bool queued;
@@ -16,12 +32,40 @@ struct QueuedTransactionData {
     bytes sanityCheckCallData;
 }
 
+struct PolicyUintRange {
+    string id;
+    address admin;
+    uint40 delay;
+    uint256 minValue;
+    uint256 maxValue;
+}
+
+struct AddressSet {
+    address key;
+    address[] values;
+}
+
+struct PolicyAddressSet {
+    string id;
+    address admin;
+    uint40 delay;
+    AddressSet[] addressSet;
+}
+
+struct PolicyState {
+    PolicyUintRange[] policiesInRange;
+    PolicyAddressSet[] policiesAddressSet;
+}
+
 interface IControllerTimelockV3Events {
     /// @notice Emitted when the veto admin of the controller is updated
-    event SetVetoAdmin(address indexed newAdmin);
+    event SetVetoAdmin(address indexed admin);
 
     /// @notice Emitted when an address' status as executor is changed
-    event SetExecutor(address indexed executor, bool status);
+    event AddExecutor(address indexed executor);
+
+    /// @notice Emitted when an address' status as executor is changed
+    event RemoveExecutor(address indexed executor);
 
     /// @notice Emitted when a transaction is queued
     event QueueTransaction(
@@ -33,6 +77,12 @@ interface IControllerTimelockV3Events {
 
     /// @notice Emitted when a transaction is cancelled
     event CancelTransaction(bytes32 indexed txHash);
+
+    event UpdatePolicyRange(string policyID, uint256 min, uint256 max);
+
+    event AddToPolicyList(string policyID, address key, address value);
+
+    event RemoveFromPolicyList(string policyID, address key, address value);
 }
 
 interface IControllerTimelockV3Exceptions {
@@ -136,5 +186,9 @@ interface IControllerTimelockV3 is IControllerTimelockV3Events, IControllerTimel
 
     function setVetoAdmin(address newAdmin) external;
 
-    function setExecutor(address executor, bool status) external;
+    function addExecutor(address executorAddress) external;
+
+    function removeExecutor(address executorAddress) external;
+
+    function executors() external view returns (address[] memory);
 }
