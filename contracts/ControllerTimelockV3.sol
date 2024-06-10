@@ -67,7 +67,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     // -------- //
 
     /// @notice Queues a transaction to set a new expiration date in the Credit Facade
-    /// @dev Requires the policy for keccak(group(creditManager), "EXPIRATION_DATE") to be enabled,
+    /// @dev Requires the policy for "setExpirationDate" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the expiration date for
     /// @param expirationDate The new expiration date
@@ -100,7 +100,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new limiter value in a price feed
-    /// @dev Requires the policy for keccak(group(priceFeed), "LP_PRICE_FEED_LIMITER") to be enabled,
+    /// @dev Requires the policy for "setLPPriceFeedLimiter" to be enabled,
     ///      otherwise auto-fails the check
     /// @param priceFeed The price feed to update the limiter in
     /// @param lowerBound The new limiter lower bound value
@@ -124,7 +124,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new max debt per block multiplier
-    /// @dev Requires the policy for keccak(group(creditManager), "MAX_DEBT_PER_BLOCK_MULTIPLIER") to be enabled,
+    /// @dev Requires the policy for "setMaxDebtPerBlockMultiplier" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the multiplier for
     /// @param multiplier The new multiplier value
@@ -152,7 +152,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new min debt per account
-    /// @dev Requires the policy for keccak(group(creditManager), "MIN_DEBT") to be enabled,
+    /// @dev Requires the policy for "setMinDebtLimit" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the limits for
     /// @param minDebt The new minimal debt amount
@@ -179,7 +179,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new max debt per account
-    /// @dev Requires the policy for keccak(group(creditManager), "MAX_DEBT") to be enabled,
+    /// @dev Requires the policy for "setMaxDebtLimit" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the limits for
     /// @param maxDebt The new maximal debt amount
@@ -206,7 +206,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new debt limit for a Credit Manager
-    /// @dev Requires the policy for keccak(group(creditManager), "CREDIT_MANAGER_DEBT_LIMIT") to be enabled,
+    /// @dev Requires the policy for "setCreditManagerDebtLimit" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the debt limit for
     /// @param debtLimit The new debt limit
@@ -232,7 +232,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to start a liquidation threshold ramp
-    /// @dev Requires the policy for keccak(group(creditManager), group(token), "TOKEN_LT") to be enabled,
+    /// @dev Requires the policy for "rampLiquidationThreshold" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to update the LT for
     /// @param token Token to ramp the LT for
@@ -271,7 +271,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to forbid a third party contract adapter
-    /// @dev Requires the policy for keccak(group(creditManager), "FORBID_ADAPTER") to be enabled,
+    /// @dev Requires the policy for "forbidAdapter" to be enabled,
     ///      otherwise auto-fails the check
     /// @param creditManager Adress of CM to forbid an adapter for
     /// @param adapter Address of adapter to forbid
@@ -294,7 +294,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new limit on quotas for particular pool and token
-    /// @dev Requires the policy for keccak(group(pool), group(token), "TOKEN_LIMIT") to be enabled,
+    /// @dev Requires the policy for "setTokenLimit" to be enabled,
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param token Token to update the limit for
@@ -322,7 +322,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new quota increase (trading) fee for a particular pool and token
-    /// @dev Requires the policy for keccak(group(pool), group(token), "TOKEN_QUOTA_INCREASE_FEE") to be enabled,
+    /// @dev Requires the policy for "setTokenQuotaIncreaseFee" to be enabled,
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param token Token to update the limit for
@@ -350,7 +350,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new total debt limit for the entire pool
-    /// @dev Requires the policy for keccak(group(pool), "TOTAL_DEBT_LIMIT") to be enabled,
+    /// @dev Requires the policy for "setTotalDebtLimit" to be enabled,
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param newLimit The new value of the limit
@@ -376,7 +376,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new withdrawal fee in a pool
-    /// @dev Requires the policy for keccak(group(pool), "WITHDRAW_FEE") to be enabled,
+    /// @dev Requires the policy for "setWithdrawFee" to be enabled,
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param newFee The new value of the fee in bp
@@ -400,7 +400,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new minimal quota interest rate for particular pool and token
-    /// @dev Requires the policy for keccak(group(pool), group(token), "TOKEN_QUOTA_MIN_RATE") to be enabled,
+    /// @dev Requires the policy for "setMinQuotaRate" to be enabled,
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param token Token to set the new fee for
@@ -429,7 +429,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to set a new maximal quota interest rate for particular pool and token
-    /// @dev Requires the policy for keccak(group(pool), group(token), "TOKEN_QUOTA_MAX_RATE") to be enabled,
+    /// @dev Requires the policy for "setMaxQuotaRate" to be enabled,
     ///      otherwise auto-fails the check
     /// @param pool Pool to update the limit for
     /// @param token Token to set the new fee for
@@ -460,7 +460,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to forbid permissionless bounds update in an LP price feed
-    /// @dev Requires the policy for keccak(group(priceFeed), "UPDATE_BOUNDS_ALLOWED") to be enabled,
+    /// @dev Requires the policy for "forbidBoundsUpdate" to be enabled,
     ///      otherwise auto-fails the check
     /// @param priceFeed The price feed to forbid bounds update for
     function forbidBoundsUpdate(address priceFeed) external override {
@@ -478,7 +478,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
     }
 
     /// @notice Queues a transaction to change a price feed for a token
-    /// @dev Requires the policy for keccak(group(priceOracle), group(token), "PRICE_FEED") to be enabled,
+    /// @dev Requires the policy for "setPriceFeed_{tokenAddress}" to be enabled,
     ///      otherwise auto-fails the check
     function setPriceFeed(address priceOracle, address token, address priceFeed, uint32 stalenessPeriod)
         external
@@ -506,49 +506,82 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
         return uint256(keccak256(abi.encode(pfParams.priceFeed, pfParams.stalenessPeriod)));
     }
 
+    /// @notice Queues a transaction to allow temporary public liquidations in an emergency liquidator
+    /// @dev    Requires for the policy to be enabled, but performs no parameter checks
+    function allowTemporaryPublicLiquidations(address emergencyLiquidator, uint256 duration) external override {
+        if (!_checkPolicy("allowTemporaryPublicLiquidations", 0)) {
+            revert ParameterChecksFailedException(); // U: [CT-10]
+        }
+
+        _queueTransaction({
+            target: emergencyLiquidator,
+            signature: "allowTemporaryPublicLiquidations(uint256)",
+            data: abi.encode(duration),
+            delay: _getPolicyDelay("allowTemporaryPublicLiquidations"),
+            sanityCheckCallData: ""
+        });
+    }
+
+    /// @notice Queues a transaction to temporarily waive a policy in emergency liquidator
+    /// @dev    Requires for the policy to be enabled, but performs no parameter checks
+    function allowTemporaryPolicyWaive(address emergencyLiquidator, uint256 duration) external override {
+        if (!_checkPolicy("allowTemporaryPolicyWaive", 0)) {
+            revert ParameterChecksFailedException();
+        }
+
+        _queueTransaction({
+            target: emergencyLiquidator,
+            signature: "allowTemporaryPolicyWaive(uint256)",
+            data: abi.encode(duration),
+            delay: _getPolicyDelay("allowTemporaryPolicyWaive"),
+            sanityCheckCallData: ""
+        });
+    }
+
     /// @dev Internal function that stores the transaction in the queued tx map
     /// @param target The contract to call
     /// @param signature The signature of the called function
     /// @param data The call data
-    /// @return Hash of the queued transaction
     function _queueTransaction(
         address target,
         string memory signature,
         bytes memory data,
         uint256 delay,
         bytes memory sanityCheckCallData
-    ) internal returns (bytes32) {
-        uint256 eta = block.timestamp + delay;
+    ) internal {
+        if (delay == 0) {
+            _execute(target, signature, data);
+        } else {
+            uint256 eta = block.timestamp + delay;
 
-        bytes32 txHash = keccak256(abi.encode(msg.sender, target, signature, data));
-        uint256 sanityCheckValue;
+            bytes32 txHash = keccak256(abi.encode(msg.sender, target, signature, data));
+            uint256 sanityCheckValue;
 
-        if (sanityCheckCallData.length != 0) {
-            (, bytes memory returndata) = address(this).staticcall(sanityCheckCallData);
-            sanityCheckValue = abi.decode(returndata, (uint256));
+            if (sanityCheckCallData.length != 0) {
+                (, bytes memory returndata) = address(this).staticcall(sanityCheckCallData);
+                sanityCheckValue = abi.decode(returndata, (uint256));
+            }
+
+            queuedTransactions[txHash] = QueuedTransactionData({
+                queued: true,
+                initiator: msg.sender,
+                target: target,
+                eta: uint40(eta),
+                signature: signature,
+                data: data,
+                sanityCheckValue: sanityCheckValue,
+                sanityCheckCallData: sanityCheckCallData
+            });
+
+            emit QueueTransaction({
+                txHash: txHash,
+                initiator: msg.sender,
+                target: target,
+                signature: signature,
+                data: data,
+                eta: uint40(eta)
+            });
         }
-
-        queuedTransactions[txHash] = QueuedTransactionData({
-            queued: true,
-            initiator: msg.sender,
-            target: target,
-            eta: uint40(eta),
-            signature: signature,
-            data: data,
-            sanityCheckValue: sanityCheckValue,
-            sanityCheckCallData: sanityCheckCallData
-        });
-
-        emit QueueTransaction({
-            txHash: txHash,
-            initiator: msg.sender,
-            target: target,
-            signature: signature,
-            data: data,
-            eta: uint40(eta)
-        });
-
-        return txHash;
     }
 
     // --------- //
@@ -601,6 +634,11 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
 
         queuedTransactions[txHash].queued = false;
 
+        _execute(target, signature, data);
+    }
+
+    /// @dev Executes an external function call
+    function _execute(address target, string memory signature, bytes memory data) internal {
         bytes memory callData;
 
         if (bytes(signature).length == 0) {
@@ -615,7 +653,7 @@ contract ControllerTimelockV3 is PolicyManagerV3, IControllerTimelockV3 {
             revert TxExecutionRevertedException(); // U: [CT-9]
         }
 
-        emit ExecuteTransaction(txHash); // U: [CT-9]
+        emit ExecuteTransaction(target, signature, data); // U: [CT-9]
     }
 
     // ------------- //

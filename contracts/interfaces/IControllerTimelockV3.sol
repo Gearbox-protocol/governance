@@ -29,7 +29,7 @@ interface IControllerTimelockV3Events {
     );
 
     /// @notice Emitted when a transaction is executed
-    event ExecuteTransaction(bytes32 indexed txHash);
+    event ExecuteTransaction(address indexed target, string signature, bytes data);
 
     /// @notice Emitted when a transaction is cancelled
     event CancelTransaction(bytes32 indexed txHash);
@@ -101,6 +101,10 @@ interface IControllerTimelockV3 is IControllerTimelockV3Events, IControllerTimel
     function forbidBoundsUpdate(address priceFeed) external;
 
     function setPriceFeed(address priceOracle, address token, address priceFeed, uint32 stalenessPeriod) external;
+
+    function allowTemporaryPublicLiquidations(address emergencyLiquidator, uint256 duration) external;
+
+    function allowTemporaryPolicyWaive(address emergencyLiquidator, uint256 duration) external;
 
     // --------- //
     // EXECUTION //

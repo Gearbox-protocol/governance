@@ -62,9 +62,6 @@ contract EmergencyLiquidator is ACLNonReentrantTrait, IEmergencyLiquidatorExcept
     /// @notice Timestamp until which liquidations by whitelisted accounts are not checked against policy
     uint40 public policyWaivedForWhitelistUntil;
 
-    /// @notice Whether the address is a trusted account capable of doing whitelist-only actions
-    mapping(address => bool) public isWhitelisted;
-
     /// @notice Map to substitute prices of tokens with other tokens, for policy checks
     mapping(address => address) public priceAlias;
 
@@ -74,16 +71,16 @@ contract EmergencyLiquidator is ACLNonReentrantTrait, IEmergencyLiquidatorExcept
     /// @dev Set of all whitelisted accounts in the contract
     EnumerableSet.AddressSet internal whitelistedAccounts;
 
-    constructor(address _addressProvider) ACLNonReentrantTrait(_addressProvider) {}
+    constructor(address _acl) ACLNonReentrantTrait(_acl) {}
 
     modifier whitelistedOnly() {
-        if (!isWhitelisted[msg.sender]) revert CallerNotWhitelistedException();
+        if (!whitelistedAccounts.contains(msg.sender)) revert CallerNotWhitelistedException();
         _;
     }
 
     /// @dev Checks that either the temporary non-whitelisted mode is enabled, or the msg.sender is whitelised
     modifier timedNonWhitelistedOnly() {
-        if (block.timestamp > publicLiquidationsAllowedUntil && !isWhitelisted[msg.sender]) {
+        if (block.timestamp > publicLiquidationsAllowedUntil && !whitelistedAccounts.contains(msg.sender)) {
             revert CallerNotWhitelistedException();
         }
         _;
@@ -101,25 +98,8 @@ contract EmergencyLiquidator is ACLNonReentrantTrait, IEmergencyLiquidatorExcept
         timedNonWhitelistedOnly
     {
         address creditFacade = ICreditManagerV3(creditManager).creditFacade();
-        _checkWithdrawalsDestination(creditFacade, calls);
-        MultiCall[] memory mCalls = _applyPriceFeedUpdates(creditManager, calls);
-
-        CollateralDebtData memory cdd =
-            ICreditManagerV3(creditManager).calcDebtAndCollateral(creditAccount, CollateralCalcTask.DEBT_COLLATERAL);
-
-        /// The general policy for liquidations is that when the CF is paused and there is bad debt -
-        /// we check whether the account is liquidatable with prices computed from aliases. I.e. when an
-        /// alias is set for a token, we use the price of the alias to compute the TWV instead of the token's own price.
-        /// This allows to, for example, set a pegged assets price feed (only for the purposes of bad debt liquidations) to
-        /// the feed of its peg target (e.g., ETH for LRTs). This allows to avoid immediately liquidating accounts that went
-        /// unhealthy due to a short-term peg. This policy can be overriden if bad debt liquidations are
-        /// deemed to be actually justified.
-        if (
-            _hasBadDebt(creditManager, cdd)
-                && !(_isPolicyWaived(msg.sender) || _isLiquidatableAliased(creditManager, creditAccount, cdd))
-        ) {
-            revert PolicyViolatingLiquidationException();
-        }
+        address priceOracle = ICreditManagerV3(creditManager).priceOracle();
+        MultiCall[] memory mCalls = _checkPolicy(creditManager, creditFacade, creditAccount, priceOracle, calls);
 
         ICreditFacadeV3(creditFacade).liquidateCreditAccount(creditAccount, address(this), mCalls);
     }
@@ -134,41 +114,70 @@ contract EmergencyLiquidator is ACLNonReentrantTrait, IEmergencyLiquidatorExcept
         MultiCall[] calldata calls
     ) external whenNotPaused whitelistedOnly {
         address creditFacade = ICreditManagerV3(creditManager).creditFacade();
-        _checkWithdrawalsDestination(creditFacade, calls);
+        address priceOracle = ICreditManagerV3(creditManager).priceOracle();
+        MultiCall[] memory mCalls = _checkPolicy(creditManager, creditFacade, creditAccount, priceOracle, calls);
 
         address underlying = ICreditManagerV3(creditManager).underlying();
-
         IERC20(underlying).forceApprove(creditManager, type(uint256).max);
-        ICreditFacadeV3(creditFacade).liquidateCreditAccount(creditAccount, address(this), calls);
+        ICreditFacadeV3(creditFacade).liquidateCreditAccount(creditAccount, address(this), mCalls);
         IERC20(underlying).forceApprove(creditManager, 1);
+    }
+
+    /// @dev Checks that the liquidation satisfies policy
+    /// @dev The general policy for liquidations is that when the CF is paused and there is bad debt -
+    ///      we check whether the account is liquidatable with prices computed from aliases. I.e. when an
+    ///      alias is set for a token, we use the price of the alias to compute the TWV instead of the token's own price.
+    ///      This allows to, for example, set a pegged assets price feed (only for the purposes of bad debt liquidations) to
+    ///      the feed of its peg target (e.g., ETH for LRTs). This allows to avoid immediately liquidating accounts that went
+    ///      unhealthy due to a short-term peg. This policy can be overriden if bad debt liquidations are
+    ///      deemed to be actually justified.
+    function _checkPolicy(
+        address creditManager,
+        address creditFacade,
+        address creditAccount,
+        address priceOracle,
+        MultiCall[] calldata calls
+    ) internal returns (MultiCall[] memory mCalls) {
+        _checkWithdrawalsDestination(creditFacade, calls);
+
+        mCalls = _applyPriceFeedUpdates(creditManager, creditFacade, priceOracle, calls);
+
+        CollateralDebtData memory cdd =
+            ICreditManagerV3(creditManager).calcDebtAndCollateral(creditAccount, CollateralCalcTask.DEBT_COLLATERAL);
+
+        if (
+            _hasBadDebt(creditManager, cdd)
+                && !(_isPolicyWaived(msg.sender) || _isLiquidatableAliased(creditManager, creditAccount, priceOracle, cdd))
+        ) {
+            revert PolicyViolatingLiquidationException();
+        }
     }
 
     /// @dev Returns whether the msg.sender can liquidate in lieu of policy
     function _isPolicyWaived(address account) internal view returns (bool) {
-        return isWhitelisted[account] && block.timestamp <= policyWaivedForWhitelistUntil;
+        return whitelistedAccounts.contains(account) && block.timestamp <= policyWaivedForWhitelistUntil;
     }
 
     /// @dev Returns whether the account is in bad debt
     function _hasBadDebt(address creditManager, CollateralDebtData memory cdd) internal view returns (bool) {
-        (,, uint16 liquidationPremium,,) = ICreditManagerV3(creditManager).fees();
-        return cdd.totalValue * liquidationPremium < (cdd.debt + cdd.accruedInterest) * PERCENTAGE_FACTOR;
+        (,, uint16 liquidationDiscount,,) = ICreditManagerV3(creditManager).fees();
+        return cdd.totalValue * liquidationDiscount < (cdd.debt + cdd.accruedInterest) * PERCENTAGE_FACTOR;
     }
 
     /// @dev Returns whether the account is liquidatable after replacing collateral token prices with their
     ///      respective alias prices
-    function _isLiquidatableAliased(address creditManager, address creditAccount, CollateralDebtData memory cdd)
-        internal
-        view
-        returns (bool)
-    {
+    function _isLiquidatableAliased(
+        address creditManager,
+        address creditAccount,
+        address priceOracle,
+        CollateralDebtData memory cdd
+    ) internal view returns (bool) {
         uint256 remainingTokensMask = cdd.enabledTokensMask.disable(UNDERLYING_TOKEN_MASK);
         if (remainingTokensMask == 0) return cdd.twvUSD < cdd.totalDebtUSD;
 
         uint256 twvUSDAliased = cdd.twvUSD;
-        address priceOracle = ICreditManagerV3(creditManager).priceOracle();
 
         uint256 underlyingPriceRAY = _convertToUSD(priceOracle, ICreditManagerV3(creditManager).underlying(), RAY);
-        IPriceOracleV3(priceOracle).convertToUSD(RAY, ICreditManagerV3(creditManager).underlying());
 
         while (remainingTokensMask != 0) {
             uint256 tokenMask = remainingTokensMask & uint256(-int256(remainingTokensMask));
@@ -213,12 +222,13 @@ contract EmergencyLiquidator is ACLNonReentrantTrait, IEmergencyLiquidatorExcept
     }
 
     /// @dev Applies price feed updates and removes the corresponding call from the array
-    function _applyPriceFeedUpdates(address creditManager, MultiCall[] calldata calls)
-        internal
-        returns (MultiCall[] memory newCalls)
-    {
-        address creditFacade = ICreditManagerV3(creditManager).creditFacade();
-        address priceOracle = ICreditManagerV3(creditManager).priceOracle();
+    function _applyPriceFeedUpdates(
+        address creditManager,
+        address creditFacade,
+        address priceOracle,
+        MultiCall[] calldata calls
+    ) internal returns (MultiCall[] memory newCalls) {
+        if (calls.length == 0) return calls;
 
         newCalls = calls;
 
@@ -293,14 +303,13 @@ contract EmergencyLiquidator is ACLNonReentrantTrait, IEmergencyLiquidatorExcept
     }
 
     /// @notice Sends funds accumulated from liquidations to a specified address
-    function withdrawFunds(address token, address to) external configuratorOnly {
-        uint256 bal = IERC20(token).balanceOf(address(this));
-        IERC20(token).safeTransfer(to, bal);
+    function withdrawFunds(address token, uint256 amount, address to) external configuratorOnly {
+        IERC20(token).safeTransfer(to, amount);
     }
 
     /// @notice Sets the status of an account as whitelisted
     function setWhitelistedAccount(address account, bool newStatus) external configuratorOnly {
-        bool whitelistedStatus = isWhitelisted[account];
+        bool whitelistedStatus = whitelistedAccounts.contains(account);
 
         if (newStatus != whitelistedStatus) {
             if (newStatus) {

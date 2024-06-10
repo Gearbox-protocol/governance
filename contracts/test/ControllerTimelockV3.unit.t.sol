@@ -19,6 +19,7 @@ import {IGaugeV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IGaugeV3.
 import {PoolV3} from "@gearbox-protocol/core-v3/contracts/pool/PoolV3.sol";
 import {PoolQuotaKeeperV3} from "@gearbox-protocol/core-v3/contracts/pool/PoolQuotaKeeperV3.sol";
 import {GaugeV3} from "@gearbox-protocol/core-v3/contracts/pool/GaugeV3.sol";
+import {EmergencyLiquidator} from "../EmergencyLiquidator.sol";
 import {ILPPriceFeedV2} from "@gearbox-protocol/core-v2/contracts/interfaces/ILPPriceFeedV2.sol";
 import {IControllerTimelockV3Events} from "../interfaces/IControllerTimelockV3.sol";
 import "@gearbox-protocol/core-v3/contracts/interfaces/IExceptions.sol";
@@ -858,8 +859,8 @@ contract ControllerTimelockV3UnitTest is Test, IControllerTimelockV3Events {
             abi.encode(initialExpirationDate)
         );
 
-        vm.expectEmit(true, false, false, false);
-        emit ExecuteTransaction(txHash);
+        vm.expectEmit(true, false, false, true);
+        emit ExecuteTransaction(creditConfigurator, "setExpirationDate(uint40)", abi.encode(expirationDate));
 
         vm.prank(FRIEND);
         controllerTimelock.executeTransaction(txHash);
@@ -1612,5 +1613,187 @@ contract ControllerTimelockV3UnitTest is Test, IControllerTimelockV3Events {
 
         vm.prank(FRIEND2);
         controllerTimelock.executeTransaction(txHash);
+    }
+
+    /// @dev U:[CT-20]: zero delay transactions are immediately executed
+    function test_U_CT_20_0_delay_transactions_are_immediately_executed() public {
+        (,,, address pool, address poolQuotaKeeper) = _makeMocks();
+
+        address token = makeAddr("TOKEN");
+
+        vm.mockCall(
+            poolQuotaKeeper,
+            abi.encodeCall(IPoolQuotaKeeperV3.getTokenQuotaParams, (token)),
+            abi.encode(uint16(10), uint192(1e27), uint16(15), uint96(1e17), uint96(1e18), true)
+        );
+
+        string memory policyID = "setTokenLimit";
+
+        uint256[] memory setValues = new uint256[](1);
+        setValues[0] = 2e18;
+
+        Policy memory policy = Policy({
+            enabled: false,
+            admin: FRIEND,
+            delay: 0,
+            checkInterval: false,
+            checkSet: true,
+            intervalMinValue: 0,
+            intervalMaxValue: 0,
+            setValues: setValues
+        });
+
+        vm.prank(CONFIGURATOR);
+        controllerTimelock.setPolicy(policyID, policy);
+
+        vm.expectEmit(true, false, false, true);
+        emit ExecuteTransaction(poolQuotaKeeper, "setTokenLimit(address,uint96)", abi.encode(token, uint96(2e18)));
+
+        vm.prank(FRIEND);
+        controllerTimelock.setTokenLimit(pool, token, 2e18);
+    }
+
+    /// @dev U:[CT-21]: allowTemporaryPublicLiquidations works correctly
+    function test_U_CT_21_allowTemporaryPublicLiquidations_works_correctly() public {
+        address emergencyLiquidator = address(new GeneralMock());
+
+        string memory policyID = "allowTemporaryPublicLiquidations";
+
+        uint256[] memory setValues = new uint256[](0);
+
+        Policy memory policy = Policy({
+            enabled: false,
+            admin: admin,
+            delay: 1 days,
+            checkInterval: false,
+            checkSet: false,
+            intervalMinValue: 0,
+            intervalMaxValue: 0,
+            setValues: setValues
+        });
+
+        // VERIFY THAT THE FUNCTION CANNOT BE CALLED WITHOUT RESPECTIVE POLICY
+        vm.expectRevert(ParameterChecksFailedException.selector);
+        vm.prank(admin);
+        controllerTimelock.allowTemporaryPublicLiquidations(emergencyLiquidator, 3600);
+
+        vm.prank(CONFIGURATOR);
+        controllerTimelock.setPolicy(policyID, policy);
+
+        // VERIFY THAT THE FUNCTION IS ONLY CALLABLE BY ADMIN
+        vm.expectRevert(ParameterChecksFailedException.selector);
+        vm.prank(USER);
+        controllerTimelock.allowTemporaryPublicLiquidations(emergencyLiquidator, 3600);
+
+        // VERIFY THAT THE FUNCTION IS QUEUED AND EXECUTED CORRECTLY
+        bytes32 txHash = keccak256(
+            abi.encode(admin, emergencyLiquidator, "allowTemporaryPublicLiquidations(uint256)", abi.encode(3600))
+        );
+
+        vm.expectEmit(true, false, false, true);
+        emit QueueTransaction(
+            txHash,
+            admin,
+            emergencyLiquidator,
+            "allowTemporaryPublicLiquidations(uint256)",
+            abi.encode(3600),
+            uint40(block.timestamp + 1 days)
+        );
+
+        vm.prank(admin);
+        controllerTimelock.allowTemporaryPublicLiquidations(emergencyLiquidator, 3600);
+
+        (,,,,,, uint256 sanityCheckValue, bytes memory sanityCheckCallData) =
+            controllerTimelock.queuedTransactions(txHash);
+
+        assertEq(sanityCheckValue, 0, "Sanity check value written incorrectly");
+
+        assertEq(sanityCheckCallData, "");
+
+        vm.expectCall(
+            emergencyLiquidator,
+            abi.encodeWithSelector(EmergencyLiquidator.allowTemporaryPublicLiquidations.selector, (3600))
+        );
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.prank(admin);
+        controllerTimelock.executeTransaction(txHash);
+
+        (bool queued,,,,,,,) = controllerTimelock.queuedTransactions(txHash);
+
+        assertTrue(!queued, "Transaction is still queued after execution");
+    }
+
+    /// @dev U:[CT-22]: allowTemporaryPolicyWaive works correctly
+    function test_U_CT_22_allowTemporaryPolicyWaive_works_correctly() public {
+        address emergencyLiquidator = address(new GeneralMock());
+
+        string memory policyID = "allowTemporaryPolicyWaive";
+
+        uint256[] memory setValues = new uint256[](0);
+
+        Policy memory policy = Policy({
+            enabled: false,
+            admin: admin,
+            delay: 1 days,
+            checkInterval: false,
+            checkSet: false,
+            intervalMinValue: 0,
+            intervalMaxValue: 0,
+            setValues: setValues
+        });
+
+        // VERIFY THAT THE FUNCTION CANNOT BE CALLED WITHOUT RESPECTIVE POLICY
+        vm.expectRevert(ParameterChecksFailedException.selector);
+        vm.prank(admin);
+        controllerTimelock.allowTemporaryPolicyWaive(emergencyLiquidator, 3600);
+
+        vm.prank(CONFIGURATOR);
+        controllerTimelock.setPolicy(policyID, policy);
+
+        // VERIFY THAT THE FUNCTION IS ONLY CALLABLE BY ADMIN
+        vm.expectRevert(ParameterChecksFailedException.selector);
+        vm.prank(USER);
+        controllerTimelock.allowTemporaryPolicyWaive(emergencyLiquidator, 3600);
+
+        // VERIFY THAT THE FUNCTION IS QUEUED AND EXECUTED CORRECTLY
+        bytes32 txHash = keccak256(
+            abi.encode(admin, emergencyLiquidator, "allowTemporaryPolicyWaive(uint256)", abi.encode(3600))
+        );
+
+        vm.expectEmit(true, false, false, true);
+        emit QueueTransaction(
+            txHash,
+            admin,
+            emergencyLiquidator,
+            "allowTemporaryPolicyWaive(uint256)",
+            abi.encode(3600),
+            uint40(block.timestamp + 1 days)
+        );
+
+        vm.prank(admin);
+        controllerTimelock.allowTemporaryPolicyWaive(emergencyLiquidator, 3600);
+
+        (,,,,,, uint256 sanityCheckValue, bytes memory sanityCheckCallData) =
+            controllerTimelock.queuedTransactions(txHash);
+
+        assertEq(sanityCheckValue, 0, "Sanity check value written incorrectly");
+
+        assertEq(sanityCheckCallData, "");
+
+        vm.expectCall(
+            emergencyLiquidator,
+            abi.encodeWithSelector(EmergencyLiquidator.allowTemporaryPolicyWaive.selector, (3600))
+        );
+
+        vm.warp(block.timestamp + 1 days);
+
+        vm.prank(admin);
+        controllerTimelock.executeTransaction(txHash);
+
+        (bool queued,,,,,,,) = controllerTimelock.queuedTransactions(txHash);
+
+        assertTrue(!queued, "Transaction is still queued after execution");
     }
 }
