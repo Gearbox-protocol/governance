@@ -68,4 +68,7 @@ interface ILPNRegistry {
     /// - plonky2_proof.public_inputs: the little-endian bytes of public inputs exported by user
     /// @param blockNumber The block number of the block hash corresponding to the proof.
     function respond(uint256 requestId_, bytes32[] calldata data, uint256 blockNumber) external;
+
+    /// @notice The maximum number of blocks a query can be computed over
+    function MAX_QUERY_RANGE() external view returns (uint256);
 }

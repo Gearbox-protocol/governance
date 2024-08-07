@@ -52,6 +52,9 @@ interface ILagrangeDistributorExceptions {
 
     /// @notice Thrown when attempting to end the campaign on a block that is larger than the old end block
     error NewEndBlockLargerThanOldException();
+
+    /// @notice Thrown when a holder has already claimed their rewards for a campaign
+    error AlreadyClaimed();
 }
 
 /// @dev Precision for the propotional balance integral
@@ -122,12 +125,26 @@ contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExcepti
     /// @param holder Address of the token holder
     /// @param campaignId Id of the campaign
     function queryCumulativeProportionateBalance(address holder, uint256 campaignId) public payable {
-        uint256 blockLU = _campaigns[campaignId].blockLU[holder];
-        uint256 startBlock = _campaigns[campaignId].startBlock;
-        uint256 endBlock = _campaigns[campaignId].endBlock;
+        CampaignData campaign = _campaigns[campaignId];
+
+        uint256 blockLU = campaign.blockLU[holder];
+        uint256 startBlock = campaign.startBlock;
+        uint256 endBlock = campaign.endBlock;
 
         startBlock = blockLU > startBlock ? blockLU : startBlock;
         endBlock = block.number > endBlock ? endBlock : block.number;
+
+        uint256 maxQueryRange = ILPNRegistry(lpnRegistry).MAX_QUERY_RANGE();
+        uint256 queryRange = (endBlock - startBlock) + 1;
+
+        if (queryRange > maxQueryRange) {
+            endBlock = startBlock + queryRange - 1;
+        }
+
+        // TODO: this can be removed since LPNRegistry.request will revert
+        if (startBlock > endBlock) {
+            revert AlreadyClaimed();
+        }
 
         uint256 requestId = ILPNRegistry(lpnRegistry).request{value: ILPNRegistry(lpnRegistry).gasFee()}(
             queriedToken,
@@ -136,7 +153,7 @@ contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExcepti
             endBlock
         );
 
-        _campaigns[campaignId].blockLU[holder] = block.number;
+        _campaigns[campaignId].blockLU[holder] = endBlock + 1;
         requestData[requestId] = RequestData({campaignId: campaignId, holder: holder});
     }
 
@@ -173,7 +190,7 @@ contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExcepti
         for (uint256 i = 0; i < len; ++i) {
             _campaigns[campaignId].rewards.push(rewards[i]);
             IERC20(rewards[i].rewardToken).safeTransferFrom(
-                msg.sender, address(this), rewards[i].rewardRate * (endBlock - startBlock)
+                msg.sender, address(this), rewards[i].rewardRate * (endBlock - startBlock + 1)
             );
 
             unchecked {
