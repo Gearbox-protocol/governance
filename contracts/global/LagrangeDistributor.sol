@@ -128,6 +128,7 @@ contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExcepti
 
         startBlock = blockLU > startBlock ? blockLU : startBlock;
         endBlock = block.number > endBlock ? endBlock : block.number;
+        endBlock = endBlock - 1;
 
         uint256 requestId = ILPNRegistry(lpnRegistry).request{value: ILPNRegistry(lpnRegistry).gasFee()}(
             queriedToken,
