@@ -5,9 +5,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@1inch/solidity-utils/contracts/libraries/SafeERC20.sol";
 
-import {ILPNClient} from "../interfaces/lagrange/ILPNClient.sol";
-import {ILPNRegistry} from "../interfaces/lagrange/ILPNRegistry.sol";
-import {QueryParams} from "../interfaces/lagrange/QueryParams.sol";
+import {ILPNClientV1} from "../interfaces/lagrange/ILPNClientV1.sol";
+import {ILPNRegistryV1, QueryOutput} from "../interfaces/lagrange/ILPNRegistryV1.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 struct RewardData {
@@ -57,9 +56,18 @@ interface ILagrangeDistributorExceptions {
 /// @dev Precision for the propotional balance integral
 uint256 constant PROPORTIONAL_BALANCE_PRECISION = 10 ** 18;
 
-contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExceptions, ILagrangeDistributorEvents {
-    using QueryParams for QueryParams.ERC20QueryParams;
+contract LagrangeDistributor is Ownable, ILPNClientV1, ILagrangeDistributorExceptions, ILagrangeDistributorEvents {
     using SafeERC20 for IERC20;
+
+    /// @notice Columns expected in the query result
+    struct ExpectedResultRow {
+        uint256 integral;
+    }
+
+    // TODO: Register a query and fill this in
+    /// @notice The query hash corresponding to a proportionate balance query of a particular ERC20 table
+    bytes32 public constant GEARBOX_PROPORTIONATE_BALANCE_QUERY_HASH =
+        0x0000000000000000000000000000000000000000000000000000000000000000;
 
     /// @notice Address of the LPN registry
     address public immutable lpnRegistry;
@@ -92,11 +100,14 @@ contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExcepti
 
     /// @notice Callback function called by the LPNRegistry contract.
     /// @param requestId The ID of the request.
-    /// @param results The result of the request.
-    function lpnCallback(uint256 requestId, uint256[] calldata results) external lpnRegistryOnly {
+    /// @param result The result of the request.
+    function lpnCallback(uint256 requestId, QueryOutput calldata result) external lpnRegistryOnly {
         uint256 campaignId = requestData[requestId].campaignId;
         address holder = requestData[requestId].holder;
-        uint256 integral = results[0];
+
+        if (result.rows.length == 0) return;
+
+        uint256 integral = abi.decode(result.rows[0], (ExpectedResultRow)).integral;
 
         if (integral == 0) return;
 
@@ -130,11 +141,12 @@ contract LagrangeDistributor is Ownable, ILPNClient, ILagrangeDistributorExcepti
         endBlock = block.number > endBlock ? endBlock : block.number;
         endBlock = endBlock - 1;
 
-        uint256 requestId = ILPNRegistry(lpnRegistry).request{value: ILPNRegistry(lpnRegistry).gasFee()}(
-            queriedToken,
-            QueryParams.newERC20QueryParams(holder, uint88(PROPORTIONAL_BALANCE_PRECISION)).toBytes32(),
-            startBlock,
-            endBlock
+        bytes32[] memory placeholders = new bytes32[](2);
+        placeholders[0] = bytes32(bytes20(holder));
+        placeholders[1] = bytes32(PROPORTIONAL_BALANCE_PRECISION);
+
+        uint256 requestId = ILPNRegistryV1(lpnRegistry).request{value: ILPNRegistryV1(lpnRegistry).gasFee()}(
+            GEARBOX_PROPORTIONATE_BALANCE_QUERY_HASH, placeholders, startBlock, endBlock
         );
 
         _campaigns[campaignId].blockLU[holder] = block.number;
