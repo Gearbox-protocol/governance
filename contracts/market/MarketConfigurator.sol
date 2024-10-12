@@ -155,7 +155,7 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
 
         address priceOracle = _deployPriceOracle(params.priceOracleParams);
         priceOracles[pool] = priceOracle;
-        if (_getPrice(underlyingPriceFeed) == 0) revert IncorrectPriceException();
+        if (_latestAnswer(underlyingPriceFeed) == 0) revert IncorrectPriceException();
         _setPriceFeed(priceOracle, underlying, underlyingPriceFeed, false);
 
         address controller_ = controller;
@@ -175,7 +175,19 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
             revert CantRemoveNonEmptyMarketException(pool);
         }
 
-        _uninstallRateKeeper(_rateKeeper(_quotaKeeper(pool)));
+        address quotaKeeper = _quotaKeeper(pool);
+        address rateKeeper = _rateKeeper(quotaKeeper);
+
+        _unsetController(_interestRateModel(pool));
+        _unsetController(pool);
+        _unsetController(quotaKeeper);
+        _unsetController(rateKeeper);
+        _unsetController(priceOracles[pool]);
+
+        address lossLiquidator = lossLiquidators[pool];
+        if (lossLiquidator != address(0)) _unsetController(lossLiquidator);
+
+        _uninstallRateKeeper(rateKeeper);
         _setTotalDebtLimit(pool, 0);
         _setWithdrawFee(pool, 0);
         priceOracles[pool] = address(0);
@@ -197,6 +209,8 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
 
     function addToken(address pool, address token, address priceFeed) external onlyOwner {
         _ensureRegisteredPool(pool);
+
+        if (_isKnownToken(pool, token)) revert TokenAlreadyAddedException();
 
         _setPriceFeed(priceOracles[pool], token, priceFeed, false);
 
@@ -222,6 +236,11 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
 
     function _setWithdrawFee(address pool, uint256 newWithdrawFee) internal {
         IPoolV3(pool).setWithdrawFee(newWithdrawFee);
+    }
+
+    function _isKnownToken(address pool, address token) internal view returns (bool) {
+        // equivalent to `IPriceOracleV3(priceOracles[pool]).priceFeeds(token) != address(0)`
+        return token == IPoolV3(pool).asset() || IPoolQuotaKeeperV3(_quotaKeeper(pool)).isQuotedToken(token);
     }
 
     // ----------------------- //
@@ -290,6 +309,8 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
             revert CantRemoveNonEmptyCreditSuiteException(creditManager);
         }
 
+        _unsetController(_creditConfigurator(creditManager));
+
         _setCreditManagerDebtLimit(pool, creditManager, 0);
         IContractsRegisterExt(contractsRegister).removeCreditManager(creditManager);
     }
@@ -304,10 +325,13 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
     function updateCreditConfigurator(address creditManager, bytes calldata params) external onlyOwner {
         _ensureRegisteredCreditManager(creditManager);
 
-        address creditConfigurator = _deployCreditConfigurator(creditManager, params);
-        ICreditConfiguratorV3(_creditConfigurator(creditManager)).upgradeCreditConfigurator(creditConfigurator);
+        address currentCreditConfigurator = _creditConfigurator(creditManager);
+        _unsetController(currentCreditConfigurator);
 
+        address creditConfigurator = _deployCreditConfigurator(creditManager, params);
         _setController(creditConfigurator, controller);
+
+        ICreditConfiguratorV3(currentCreditConfigurator).upgradeCreditConfigurator(creditConfigurator);
     }
 
     function setCreditManagerDebtLimit(address creditManager, uint256 newLimit) external onlyOwner {
@@ -385,7 +409,8 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
 
     function setExpirationDate(address creditManager, uint40 expirationDate) external onlyOwner {
         _ensureRegisteredCreditManager(creditManager);
-        if (expirationDate < block.timestamp + 14 days) revert ExpirationDateTooSoonException();
+        if (expirationDate < block.timestamp) revert IncorrectParameterException();
+        if (expirationDate < block.timestamp + 14 days) expirationDate = uint40(block.timestamp + 14 days);
 
         ICreditConfiguratorV3(_creditConfigurator(creditManager)).setExpirationDate(expirationDate);
     }
@@ -444,16 +469,20 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
     function updatePriceOracle(address pool, bytes calldata params) external onlyOwner {
         _ensureRegisteredPool(pool);
 
-        address priceOracle = _deployPriceOracle(params);
         address currentPriceOracle = priceOracles[pool];
+        _unsetController(currentPriceOracle);
+
+        address priceOracle = _deployPriceOracle(params);
+        _setController(priceOracle, controller);
         priceOracles[pool] = priceOracle;
 
+        // equivalent to `{IPoolV3(pool).asset()} ∪ IPoolQuotaKeeperV3(_quotaKeeper(pool)).quotedTokens()`
         address[] memory tokens = IPriceOracleV3(currentPriceOracle).getTokens();
         uint256 numTokens = tokens.length;
         for (uint256 i; i < numTokens; ++i) {
-            _setPriceFeed(priceOracle, tokens[i], _getPriceFeed(currentPriceOracle, tokens[i], false), false);
+            _setPriceFeed(priceOracle, tokens[i], IPriceOracleV3(currentPriceOracle).priceFeeds(tokens[i]), false);
 
-            address reserve = _getPriceFeed(currentPriceOracle, tokens[i], true);
+            address reserve = IPriceOracleV3(currentPriceOracle).reservePriceFeeds(tokens[i]);
             if (reserve != address(0)) _setPriceFeed(priceOracle, tokens[i], reserve, true);
         }
 
@@ -462,20 +491,15 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
         for (uint256 i; i < numManagers; ++i) {
             ICreditConfiguratorV3(_creditConfigurator(creditManagers[i])).setPriceOracle(priceOracle);
         }
-
-        _setController(priceOracle, controller);
     }
 
     function setPriceFeed(address pool, address token, address priceFeed) external onlyOwner {
         _ensureRegisteredPool(pool);
-
-        address priceOracle = priceOracles[pool];
-        if (_getPriceFeed(priceOracle, token, false) == address(0)) revert PriceFeedDoesNotExistException();
-
-        if (_getPrice(priceFeed) == 0 && (token == IPoolV3(pool).asset() || _quota(pool, token) != 0)) {
+        if (!_isKnownToken(pool, token)) revert TokenNotAllowedException();
+        if (_latestAnswer(priceFeed) == 0 && (token == IPoolV3(pool).asset() || _quota(pool, token) != 0)) {
             revert IncorrectPriceException();
         }
-        _setPriceFeed(priceOracle, token, priceFeed, false);
+        _setPriceFeed(priceOracles[pool], token, priceFeed, false);
     }
 
     function setReservePriceFeed(address pool, address token, address priceFeed) external onlyOwner {
@@ -501,13 +525,7 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
         _addUpdatableFeeds(priceOracle, priceFeed);
     }
 
-    function _getPriceFeed(address priceOracle, address token, bool reserve) internal view returns (address) {
-        return reserve
-            ? IPriceOracleV3(priceOracle).reservePriceFeeds(token)
-            : IPriceOracleV3(priceOracle).priceFeeds(token);
-    }
-
-    function _getPrice(address priceFeed) internal view returns (uint256) {
+    function _latestAnswer(address priceFeed) internal view returns (uint256) {
         (, int256 answer,,,) = IPriceFeed(priceFeed).latestRoundData();
         if (answer < 0) revert IncorrectPriceException();
         return uint256(answer);
@@ -533,17 +551,18 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
 
         address quotaKeeper = _quotaKeeper(pool);
         address currentRateKeeper = _rateKeeper(quotaKeeper);
+        _unsetController(currentRateKeeper);
         _uninstallRateKeeper(currentRateKeeper);
 
         address rateKeeper = _deployRateKeeper(pool, type_, params);
+        _setController(rateKeeper, controller);
+
         address[] memory tokens = IPoolQuotaKeeperV3(quotaKeeper).quotedTokens();
         uint256 numTokens = tokens.length;
         for (uint256 i; i < numTokens; ++i) {
             _addToken(rateKeeper, tokens[i], type_);
         }
         _installRateKeeper(quotaKeeper, rateKeeper);
-
-        _setController(rateKeeper, controller);
     }
 
     function configureRateKeeper(address pool, bytes calldata data) external onlyOwner {
@@ -620,10 +639,12 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
     function updateInterestRateModel(address pool, bytes32 type_, bytes calldata params) external onlyOwner {
         _ensureRegisteredPool(pool);
 
-        address irm = _deployInterestRateModel(type_, params);
-        IPoolV3(pool).setInterestRateModel(irm);
+        _unsetController(_interestRateModel(pool));
 
+        address irm = _deployInterestRateModel(type_, params);
         _setController(irm, controller);
+
+        IPoolV3(pool).setInterestRateModel(irm);
     }
 
     function configureInterestRateModel(address pool, bytes calldata data) external onlyOwner {
@@ -714,7 +735,11 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
     function updateLossLiquidator(address pool, bytes32 type_, bytes calldata params) external onlyOwner {
         _ensureRegisteredPool(pool);
 
+        address currentLossLiquidator = lossLiquidators[pool];
+        if (currentLossLiquidator != address(0)) _unsetController(currentLossLiquidator);
+
         address lossLiquidator = IContractsFactory(contractsFactory).deployLossLiquidator(pool, type_, params);
+        _setController(lossLiquidator, controller);
 
         address[] memory creditManagers = _creditManagers(pool);
         uint256 numManagers = creditManagers.length;
@@ -723,8 +748,6 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
         }
 
         lossLiquidators[pool] = lossLiquidator;
-
-        _setController(lossLiquidator, controller);
     }
 
     function configureLossLiquidator(address pool, bytes calldata data) external onlyOwner {
@@ -786,6 +809,10 @@ contract MarketConfigurator is Ownable2Step, IMarketConfigurator {
 
     function _setController(address contract_, address controller_) internal {
         try IControlledTrait(contract_).setController(controller_) {} catch {}
+    }
+
+    function _unsetController(address contract_) internal {
+        _setController(contract_, address(this));
     }
 
     // ------------- //
