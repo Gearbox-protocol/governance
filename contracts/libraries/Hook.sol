@@ -14,11 +14,22 @@ struct HookCheck {
     Call[] calls;
 }
 
+// TODO: refactor this thing and `IMarketHooks` / `ICreditHooks`, it all seems so redundant
+
 library HookExecutor {
-    function onCreateMarket(IHook factory, address pool, address priceOracle) internal returns (HookCheck memory) {
+    function onCreateMarket(
+        IHook factory,
+        address pool,
+        address priceOracle,
+        address interestRateModel,
+        address rateKeeper,
+        address underlyingPriceFeed
+    ) internal returns (HookCheck memory) {
         return HookCheck({
             factory: address(factory),
-            calls: IMarketHooks(address(factory)).onCreateMarket(pool, priceOracle)
+            calls: IMarketHooks(address(factory)).onCreateMarket(
+                pool, priceOracle, interestRateModel, rateKeeper, underlyingPriceFeed
+            )
         });
     }
 
@@ -36,25 +47,28 @@ library HookExecutor {
         });
     }
 
-    function onUpdateInterestRateModel(IHook factory, address pool, address newModel)
+    function onUpdateInterestRateModel(
+        IHook factory,
+        address pool,
+        address newInterestRateModel,
+        address oldInterestRateModel
+    ) internal returns (HookCheck memory) {
+        return HookCheck({
+            factory: address(factory),
+            calls: IMarketHooks(address(factory)).onUpdateInterestRateModel(
+                pool, newInterestRateModel, oldInterestRateModel
+            )
+        });
+    }
+
+    function onUpdateRateKeeper(IHook factory, address pool, address newRateKeeper, address oldRateKeeper)
         internal
         returns (HookCheck memory)
     {
         return HookCheck({
             factory: address(factory),
-            calls: IMarketHooks(address(factory)).onUpdateInterestRateModel(pool, newModel)
+            calls: IMarketHooks(address(factory)).onUpdateRateKeeper(pool, newRateKeeper, oldRateKeeper)
         });
-    }
-
-    function onUpdateRateKeeper(IHook factory, address pool, address newKeeper) internal returns (HookCheck memory) {
-        return HookCheck({
-            factory: address(factory),
-            calls: IMarketHooks(address(factory)).onUpdateRateKeeper(pool, newKeeper)
-        });
-    }
-
-    function onRemoveRateKeeper(IHook factory, address pool) internal returns (HookCheck memory) {
-        return HookCheck({factory: address(factory), calls: IMarketHooks(address(factory)).onRemoveRateKeeper(pool)});
     }
 
     function onCreateCreditSuite(IHook factory, address pool, address newCreditManager)
@@ -67,23 +81,20 @@ library HookExecutor {
         });
     }
 
-    function onShutdownCreditSuite(IHook factory, address pool, address _creditManager)
-        internal
-        returns (HookCheck memory)
-    {
+    function onShutdownCreditSuite(IHook factory, address _creditManager) internal returns (HookCheck memory) {
         return HookCheck({
             factory: address(factory),
-            calls: IMarketHooks(address(factory)).onShutdownCreditSuite(pool, _creditManager)
+            calls: IMarketHooks(address(factory)).onShutdownCreditSuite(_creditManager)
         });
     }
 
-    function onUpdatePriceOracle(IHook factory, address pool, address priceOracle, address prevOracle)
+    function onUpdatePriceOracle(IHook factory, address pool, address newPriceOracle, address oldPriceOracle)
         internal
         returns (HookCheck memory)
     {
         return HookCheck({
             factory: address(factory),
-            calls: IMarketHooks(address(factory)).onUpdatePriceOracle(pool, priceOracle, prevOracle)
+            calls: IMarketHooks(address(factory)).onUpdatePriceOracle(pool, newPriceOracle, oldPriceOracle)
         });
     }
 
@@ -107,16 +118,6 @@ library HookExecutor {
         });
     }
 
-    // function onUpdatePriceOracle(IHook factory, address creditManager, address priceOracle, address prevOracle)
-    //     internal
-    //     returns (HookCheck memory)
-    // {
-    //     return HookCheck({
-    //         factory: address(factory),
-    //         calls: ICreditHooks(address(factory)).onUpdatePriceOracle(creditManager, priceOracle, prevOracle)
-    //     });
-    // }
-
     function onAddEmergencyLiquidator(IHook factory, address creditManager, address emergencyLiquidator)
         internal
         returns (HookCheck memory)
@@ -137,13 +138,17 @@ library HookExecutor {
         });
     }
 
-    function onUpdateLossLiquidator(IHook factory, address creditManager, address lossLiquidator)
-        internal
-        returns (HookCheck memory)
-    {
+    function onUpdateLossLiquidator(
+        IHook factory,
+        address creditManager,
+        address newLossLiquidator,
+        address oldLossLiquidator
+    ) internal returns (HookCheck memory) {
         return HookCheck({
             factory: address(factory),
-            calls: ICreditHooks(address(factory)).onUpdateLossLiquidator(creditManager, lossLiquidator)
+            calls: ICreditHooks(address(factory)).onUpdateLossLiquidator(
+                creditManager, newLossLiquidator, oldLossLiquidator
+            )
         });
     }
 }

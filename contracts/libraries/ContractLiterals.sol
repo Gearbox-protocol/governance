@@ -10,18 +10,14 @@ bytes32 constant AP_CONTRACTS_REGISTER = "CONTRACTS_REGISTER";
 
 bytes32 constant AP_ADDRESS_PROVIDER = "ADDRESS_PROVIDER";
 
-bytes32 constant AP_POOL = "LP";
 bytes32 constant AP_POOL_QUOTA_KEEPER = "POOL_QUOTA_KEEPER";
-bytes32 constant AP_POOL_RATE_KEEPER = "POOL_RATE_KEEPER";
 
 bytes32 constant AP_PRICE_ORACLE = "PRICE_ORACLE";
 bytes32 constant AP_ACCOUNT_FACTORY = "ACCOUNT_FACTORY";
 
-// bytes32 constant AP_DATA_COMPRESSOR = "DATA_COMPRESSOR";
 bytes32 constant AP_TREASURY = "TREASURY";
 bytes32 constant AP_GEAR_TOKEN = "GEAR_TOKEN";
 bytes32 constant AP_WETH_TOKEN = "WETH_TOKEN";
-// bytes32 constant AP_WETH_GATEWAY = "WETH_GATEWAY";
 bytes32 constant AP_ROUTER = "ROUTER";
 bytes32 constant AP_BOT_LIST = "BOT_LIST";
 bytes32 constant AP_GEAR_STAKING = "GEAR_STAKING";
@@ -35,7 +31,6 @@ bytes32 constant AP_MULTI_PAUSE = "MULTI_PAUSE";
 bytes32 constant AP_BYTECODE_REPOSITORY = "BYTECODE_REPOSITORY";
 bytes32 constant AP_PRICE_FEED_STORE = "PRICE_FEED_STORE";
 
-bytes32 constant AP_CREDIT_MANAGER = "CREDIT_MANAGER";
 bytes32 constant AP_CREDIT_FACADE = "CREDIT_FACADE";
 bytes32 constant AP_CREDIT_CONFIGURATOR = "CREDIT_CONFIGURATOR";
 bytes32 constant AP_DEGEN_NFT = "DEGEN_NFT";
@@ -52,11 +47,14 @@ bytes32 constant AP_PRICE_ORACLE_FACTORY = "PRICE_ORACLE_FACTORY";
 bytes32 constant AP_RATE_KEEPER_FACTORY = "RATE_KEEPER_FACTORY";
 
 bytes32 constant AP_DEFAULT_IRM = "DEFAULT_IRM";
-// DOMAINS
 
 bytes32 constant DOMAIN_POOL = "POOL";
 bytes32 constant DOMAIN_CREDIT_MANAGER = "CREDIT_MANAGER";
-bytes32 constant DOMAIN_ADAPTER = "ADAPTER";
+bytes32 constant DOMAIN_ADAPTER = "AD";
 bytes32 constant DOMAIN_DEGEN_NFT = "DEGEN_NFT";
+bytes32 constant DOMAIN_LOSS_LIQUIDATOR = "LOSS_LIQUIDATOR";
 bytes32 constant DOMAIN_RATE_KEEPER = "RK";
+bytes32 constant DOMAIN_PRICE_FEED = "PF";
 bytes32 constant DOMAIN_IRM = "IRM";
+bytes32 constant DOMAIN_ZAPPER = "ZAP";
+bytes32 constant DOMAIN_PHANTOM_TOKEN = "PT";

@@ -4,11 +4,11 @@
 pragma solidity ^0.8.23;
 
 import {IConfiguratingFactory} from "./IConfiguratingFactory.sol";
-import {ICreditHooks} from "./ICreditHooks.sol";
-import {DeployResult} from "./Types.sol";
+import {IMarketHooks} from "./IMarketHooks.sol";
+import {DeployParams, DeployResult} from "./Types.sol";
 
-interface IInterestRateModelFactory is IConfiguratingFactory {
-    function deployInterestRateModel(bytes32 postfix, bytes calldata encodedParams)
+interface IInterestRateModelFactory is IMarketHooks, IConfiguratingFactory {
+    function deployInterestRateModel(address pool, DeployParams calldata params)
         external
         returns (DeployResult memory);
 }

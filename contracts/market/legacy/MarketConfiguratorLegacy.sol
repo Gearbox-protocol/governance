@@ -11,42 +11,33 @@ import {IPoolV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPoolV3.so
 
 import {IContractsRegister} from "../../interfaces/extensions/IContractsRegister.sol";
 import {IContractsRegisterLegacy} from "../../interfaces/extensions/IContractsRegisterLegacy.sol";
-import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
-import {IMarketConfiguratorFactory} from "../../interfaces/IMarketConfiguratorFactory.sol";
 
-import {AP_MARKET_CONFIGURATOR_FACTORY, NO_VERSION_CONTROL} from "../../libraries/ContractLiterals.sol";
+import {AP_GEAR_STAKING, NO_VERSION_CONTROL} from "../../libraries/ContractLiterals.sol";
+import {HookCheck} from "../../libraries/Hook.sol";
 
-import {CreateMarketParams, MarketConfigurator} from "../MarketConfigurator.sol";
+import {MarketConfigurator} from "../MarketConfigurator.sol";
 
 contract MarketConfiguratorLegacy is MarketConfigurator {
-    address public immutable marketConfiguratorFactory;
-
     address public immutable gearStaking;
     address public immutable contractsRegisterLegacy;
 
-    error CallerIsNotMarketConfiguratorException();
+    error CallerIsNotMarketConfiguratorFactoryException();
 
-    modifier marketConfiguratorsOnly() {
-        if (!IMarketConfiguratorFactory(marketConfiguratorFactory).isMarketConfigurator(msg.sender)) {
-            revert CallerIsNotMarketConfiguratorException();
-        }
+    error CreditManagerMisconfiguredException(address creditManager);
+
+    modifier marketConfiguratorFactoryOnly() {
+        if (msg.sender != marketConfiguratorFactory) revert CallerIsNotMarketConfiguratorFactoryException();
         _;
     }
 
-    // TODO: reduce the number of constructor arguments
     constructor(
         address riskCurator_,
         address addressProvider_,
         address acl_,
-        address contractsRegister_,
         address treasury_,
-        address gearStaking_,
         address contractsRegisterLegacy_
-    ) MarketConfigurator(riskCurator_, addressProvider_, acl_, contractsRegister_, treasury_) {
-        marketConfiguratorFactory =
-            IAddressProvider(addressProvider).getAddressOrRevert(AP_MARKET_CONFIGURATOR_FACTORY, NO_VERSION_CONTROL);
-
-        gearStaking = gearStaking_;
+    ) MarketConfigurator(riskCurator_, addressProvider_, acl_, treasury_) {
+        gearStaking = _getContract(AP_GEAR_STAKING, NO_VERSION_CONTROL);
         contractsRegisterLegacy = contractsRegisterLegacy_;
 
         address[] memory pools = IContractsRegisterLegacy(contractsRegisterLegacy).getPools();
@@ -59,28 +50,30 @@ contract MarketConfiguratorLegacy is MarketConfigurator {
             uint256 numCreditManagers = creditManagers.length;
             if (numCreditManagers == 0) continue;
 
-            // QUESTION: shall we verify the consistency across all credit managers?
-            address priceOracle = ICreditManagerV3(creditManagers[0]).priceOracle();
+            address priceOracle = _priceOracle(creditManagers[0]);
             IContractsRegister(contractsRegister).createMarket(pool, priceOracle);
 
-            address lossLiquidator =
-                ICreditFacadeV3(ICreditManagerV3(creditManagers[0]).creditFacade()).lossLiquidator();
+            address lossLiquidator = _lossLiquidator(creditManagers[0]);
             if (lossLiquidator != address(0)) {
                 IContractsRegister(contractsRegister).setLossLiquidator(pool, lossLiquidator);
             }
 
             for (uint256 j; j < numCreditManagers; ++j) {
+                address creditManager = creditManagers[j];
+                if (
+                    !_matchVersion(creditManager) || _priceOracle(creditManager) != priceOracle
+                        || _lossLiquidator(creditManager) != lossLiquidator
+                ) {
+                    revert CreditManagerMisconfiguredException(creditManager);
+                }
+
                 IContractsRegister(contractsRegister).createCreditSuite(pool, creditManagers[j]);
+
+                // question: check all tokens are quoted etc?
             }
 
-            // TODO: set factories
+            // TODO: set factories, access lists etc
         }
-    }
-
-    function createMarket(CreateMarketParams calldata params) public override onlyOwner returns (address) {
-        address pool = super.createMarket(params);
-        IContractsRegisterLegacy(contractsRegisterLegacy).addPool(pool);
-        return pool;
     }
 
     function createCreditSuite(address pool, bytes calldata encodedParams)
@@ -96,15 +89,22 @@ contract MarketConfiguratorLegacy is MarketConfigurator {
 
     function setVotingContractStatus(address votingContract, VotingContractStatus status)
         external
-        marketConfiguratorsOnly
+        marketConfiguratorFactoryOnly
     {
-        // TODO: check that `votingContract` belongs to caller (how though? might not even implement `ACLTrait`)
+        // QUESTION: can we check that `votingContract` belongs to caller (it might not even implement `ACLTrait` though)
         IGearStakingV3(gearStaking).setVotingContractStatus(votingContract, status);
     }
+
+    // TODO: add proxy fn for DAO to manage gear staking (e.g., migration etc.)
 
     // --------- //
     // INTERNALS //
     // --------- //
+
+    function _executeHook(HookCheck memory hookCheck) internal override {
+        // TODO: prevent calling gear staking (maybe some other contracts that are managed by old ACL?)
+        super._executeHook(hookCheck);
+    }
 
     function _matchVersion(address contract_) internal view returns (bool) {
         try IVersion(contract_).version() returns (uint256 version_) {
@@ -112,5 +112,13 @@ contract MarketConfiguratorLegacy is MarketConfigurator {
         } catch {
             return false;
         }
+    }
+
+    function _priceOracle(address creditManager) internal view returns (address) {
+        return ICreditManagerV3(creditManager).priceOracle();
+    }
+
+    function _lossLiquidator(address creditManager) internal view returns (address) {
+        return ICreditFacadeV3(ICreditManagerV3(creditManager).creditFacade()).lossLiquidator();
     }
 }

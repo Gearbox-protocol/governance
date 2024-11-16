@@ -1,42 +1,27 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Foundation, 2024.
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.23;
 
 import {Call} from "../interfaces/Types.sol";
 import {IMarketHooks} from "../interfaces/IMarketHooks.sol";
 
+// TODO: it seems weird to me to have both this and `IMarketHooks` -- let's just have `MarketHooks` that serves both as interface
+// and default empty implementation
+
 contract MarketHookFactory is IMarketHooks {
-    function onCreateMarket(address pool, address priceOracle) external virtual returns (Call[] memory calls) {}
+    function onCreateMarket(
+        address pool,
+        address priceOracle,
+        address interestRateModel,
+        address rateKeeper,
+        address underlyingPriceFeed
+    ) external virtual returns (Call[] memory calls) {}
 
     /// @notice Hook that executes when a market is removed
     /// @param pool The address of the pool (represents market) being removed
     /// @return calls An array of Call structs to be executed
     function onShutdownMarket(address pool) external virtual returns (Call[] memory calls) {}
-
-    /// @notice Hook that executes when a new token is added to the market
-    /// @param pool The address of the pool (represents market)
-    /// @param token The address of the token being added
-    /// @param priceFeed The address of the price feed for the token
-    /// @return calls An array of Call structs to be executed
-    function onAddToken(address pool, address token, address priceFeed)
-        external
-        virtual
-        returns (Call[] memory calls)
-    {}
-
-    /// @notice Hook that executes when the interest model is updated
-    /// @param pool The address of the pool (represents market)
-    /// @param newModel The address of the new interest model
-    /// @return calls An array of Call structs to be executed
-    function onUpdateInterestRateModel(address pool, address newModel) external virtual returns (Call[] memory calls) {}
-
-    function onUpdateRateKeeper(address pool, address newKeeper) external virtual returns (Call[] memory calls) {}
-
-    function onRemoveRateKeeper(address pool) external virtual returns (Call[] memory calls) {}
-    //
-    // CREDIT MANAGER
-    //
 
     /// @notice Hook that executes when a new credit manager is added
     /// @param newCreditManager The address of the new credit manager
@@ -50,17 +35,44 @@ contract MarketHookFactory is IMarketHooks {
     /// @notice Hook that executes when a credit manager is removed
     /// @param _creditManager The address of the credit manager being removed
     /// @return calls An array of Call structs to be executed
-    function onShutdownCreditSuite(address pool, address _creditManager)
+    function onShutdownCreditSuite(address _creditManager) external virtual returns (Call[] memory calls) {}
+
+    function onUpdatePriceOracle(address pool, address priceOracle, address prevOracle)
         external
         virtual
         returns (Call[] memory calls)
     {}
 
-    //
-    // PRICE ORACLE
-    //
-    function onUpdatePriceOracle(address pool, address priceOracle, address prevOracle)
+    /// @notice Hook that executes when the interest model is updated
+    /// @param pool The address of the pool (represents market)
+    /// @param newModel The address of the new interest model
+    /// @return calls An array of Call structs to be executed
+    function onUpdateInterestRateModel(address pool, address newModel, address)
         external
+        virtual
+        returns (Call[] memory calls)
+    {}
+
+    function onUpdateRateKeeper(address pool, address newKeeper, address)
+        external
+        virtual
+        returns (Call[] memory calls)
+    {}
+
+    function onUpdateLossLiquidator(address pool, address lossLiquidator, address)
+        external
+        virtual
+        returns (Call[] memory calls)
+    {}
+
+    /// @notice Hook that executes when a new token is added to the market
+    /// @param pool The address of the pool (represents market)
+    /// @param token The address of the token being added
+    /// @param priceFeed The address of the price feed for the token
+    /// @return calls An array of Call structs to be executed
+    function onAddToken(address pool, address token, address priceFeed)
+        external
+        virtual
         returns (Call[] memory calls)
     {}
 
@@ -82,6 +94,7 @@ contract MarketHookFactory is IMarketHooks {
     /// @return calls An array of Call structs to be executed
     function onSetReservePriceFeed(address pool, address token, address priceFeed)
         external
+        virtual
         returns (Call[] memory calls)
     {}
 }

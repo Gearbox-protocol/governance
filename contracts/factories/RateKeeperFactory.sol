@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Foundation, 2024.
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IRateKeeperFactory} from "../interfaces/IRateKeeperFactory.sol";
@@ -13,7 +13,6 @@ import {IMarketHooks} from "../interfaces/IMarketHooks.sol";
 import {IPoolV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPoolV3.sol";
 import {IPoolQuotaKeeperV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPoolQuotaKeeperV3.sol";
 import {IGearStakingV3, VotingContractStatus} from "@gearbox-protocol/core-v3/contracts/interfaces/IGearStakingV3.sol";
-import {IVotingContract} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVotingContract.sol";
 
 import {AbstractFactory} from "./AbstractFactory.sol";
 import {MarketHookFactory} from "./MarketHookFactory.sol";
@@ -29,126 +28,149 @@ import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
 import {IRateKeeper} from "../interfaces/extensions/IRateKeeper.sol";
 import {IGaugeV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IGaugeV3.sol";
 import {ITumblerV3} from "@gearbox-protocol/core-v3/contracts/interfaces/ITumblerV3.sol";
+import {IControlledTrait} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IControlledTrait.sol";
 
-import {Call, DeployResult} from "../interfaces/Types.sol";
+import {Call, DeployParams, DeployResult} from "../interfaces/Types.sol";
 import {CallBuilder} from "../libraries/CallBuilder.sol";
 
 contract RateKeeperFactory is AbstractFactory, MarketHookFactory, IRateKeeperFactory {
     /// @notice Contract version
     uint256 public constant override version = 3_10;
+    /// @notice Contract type
     bytes32 public constant override contractType = AP_RATE_KEEPER_FACTORY;
 
     address public immutable marketConfiguratorLegacy;
 
+    error InvalidConstructorParamsException();
+
     constructor(address addressProvider_) AbstractFactory(addressProvider_) {
-        marketConfiguratorLegacy =
-            IAddressProvider(addressProvider_).getAddressOrRevert(AP_MARKET_CONFIGURATOR_LEGACY, NO_VERSION_CONTROL);
+        marketConfiguratorLegacy = _getContract(AP_MARKET_CONFIGURATOR_LEGACY, NO_VERSION_CONTROL);
     }
 
     //
     /**
      * @notice Deploys a new rate keeper for a given pool
      * @param pool The address of the pool for which to deploy the rate keeper
-     * @param postfix The postfix identifying the type of rate keeper to deploy
-     * @param encodedParams Additional encoded parameters specific to the rate keeper type
+     * @param params Rate keeper deployment params
      * @return rateKeeper The address of the newly deployed rate keeper
      */
-    function deployRateKeeper(address pool, bytes32 postfix, bytes calldata encodedParams)
+    function deployRateKeeper(address pool, DeployParams calldata params)
         external
         override
-        marketConfiguratorOnly
+        marketConfiguratorsOnly
         returns (DeployResult memory)
     {
-        bytes memory constructorParams;
-
-        if (postfix == "GAUGE") {
-            address ap = IMarketConfigurator(msg.sender).addressProvider();
-            address _gearStaking = IAddressProvider(ap).getAddressOrRevert(AP_GEAR_STAKING, NO_VERSION_CONTROL);
-            constructorParams = abi.encode(pool, _gearStaking);
-        } else if (postfix == "TUMBLER") {
-            address quotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-            uint256 epochLength_ = abi.decode(encodedParams, (uint256));
-            constructorParams = abi.encode(quotaKeeper, epochLength_);
+        // TODO: replace "GAUGE" with TYPE_POSTFIX_GAUGE
+        if (params.postfix == "GAUGE") {
+            (address decodedPool, address decodedGearStaking) = abi.decode(params.constructorParams, (address, address));
+            if (decodedPool != pool || decodedGearStaking != _getContract(AP_GEAR_STAKING, NO_VERSION_CONTROL)) {
+                revert InvalidConstructorParamsException();
+            }
+        } else if (params.postfix == "TUMBLER") {
+            (address decodedQuotaKeeper,) = abi.decode(params.constructorParams, (address, uint256));
+            if (decodedQuotaKeeper != _quotaKeeper(pool)) {
+                revert InvalidConstructorParamsException();
+            }
         } else {
-            // Default case for all further rate keepers
-            address quotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-            constructorParams = abi.encode(quotaKeeper, msg.sender, encodedParams);
+            (address decodedAddressProvider, address decodedQuotaKeeper) =
+                abi.decode(params.constructorParams[:64], (address, address));
+            if (decodedAddressProvider != addressProvider || decodedQuotaKeeper != _quotaKeeper(pool)) {
+                revert InvalidConstructorParamsException();
+            }
         }
 
-        // QUESTION: should rateKeeper know about pool?
-        address rateKeeper = IBytecodeRepository(bytecodeRepository).deployByDomain(
-            DOMAIN_RATE_KEEPER, postfix, version, constructorParams, bytes32(bytes20(msg.sender))
-        );
+        address rateKeeper = _deployByDomain({
+            domain: DOMAIN_RATE_KEEPER,
+            postfix: params.postfix,
+            version_: version,
+            constructorParams: params.constructorParams,
+            salt: bytes32(bytes20(msg.sender))
+        });
 
         address[] memory accessList;
-        Call[] memory onInstallOps;
         if (_isVotingContract(rateKeeper)) {
             accessList = new address[](2);
             accessList[1] = marketConfiguratorLegacy;
-            onInstallOps = CallBuilder.build(_setVotingContractStatus(rateKeeper, VotingContractStatus.ALLOWED));
         } else {
             accessList = new address[](1);
         }
         accessList[0] = rateKeeper;
 
-        return DeployResult({newContract: rateKeeper, accessList: accessList, onInstallOps: onInstallOps});
+        return DeployResult({newContract: rateKeeper, accessList: accessList, onInstallOps: new Call[](0)});
     }
 
-    // @dev Hook which is called when rate keeper is configured
-    // @param rateKeeper - rate keeper address
-    // @param callData - call data to be executed
-    // @return calls - array of calls to be executed
-    function configure(address rateKeeper, bytes calldata callData) external view returns (Call[] memory calls) {
-        // TODO: implement
+    // ------------ //
+    // MARKET HOOKS //
+    // ------------ //
+
+    function onCreateMarket(address, address, address, address rateKeeper, address)
+        external
+        view
+        override(IMarketHooks, MarketHookFactory)
+        returns (Call[] memory)
+    {
+        return _installRateKeeper(rateKeeper);
     }
 
-    //
-    // POOL HOOKS
-    //
+    function onShutdownMarket(address pool)
+        external
+        view
+        override(IMarketHooks, MarketHookFactory)
+        returns (Call[] memory)
+    {
+        return _uninstallRateKeeper(_rateKeeper(pool));
+    }
+
+    function onUpdateRateKeeper(address, address newRateKeeper, address oldRateKeeper)
+        external
+        view
+        override(IMarketHooks, MarketHookFactory)
+        returns (Call[] memory)
+    {
+        return CallBuilder.extend(_uninstallRateKeeper(oldRateKeeper), _installRateKeeper(newRateKeeper));
+    }
 
     // @dev Hook which is called when new token is added to the market
     // @param pool - pool address
     // @param token - token address
     // @param priceFeed - price feed address
     // @return calls - array of calls to be executed
-    function onAddToken(address pool, address token, address priceFeed)
+    function onAddToken(address pool, address token, address)
         external
         view
         override(IMarketHooks, MarketHookFactory)
-        returns (Call[] memory calls)
+        returns (Call[] memory)
     {
-        address rateKeeper = _rateKeeperByPool(pool);
-        calls = CallBuilder.build(_addToken(rateKeeper, token, _getRateKeeperType(rateKeeper)));
+        address rateKeeper = _rateKeeper(pool);
+        return CallBuilder.build(_addToken(rateKeeper, token, _getRateKeeperType(rateKeeper)));
     }
 
-    // @dev This hook exists for RateKeeperFactory only, and it's called when
-    // rate keeper is removed from the market (replaced with a new one)
-    // @return calls - array of calls to be execute
-    function onRemoveRateKeeper(address pool)
-        external
-        override(IMarketHooks, MarketHookFactory)
-        returns (Call[] memory calls)
-    {
-        address rateKeeper = _rateKeeperByPool(pool);
-        bytes32 type_ = _getRateKeeperType(rateKeeper);
-        if (type_ == "RK_GAUGE") {
-            calls = CallBuilder.build(_gaugeSetFrozenEpoch(rateKeeper));
-        } else {
-            // TODO: add generic function for all rate keepers
-        }
+    // ------------- //
+    // CONFIGURATION //
+    // ------------- //
 
-        if (_isVotingContract(rateKeeper)) {
-            calls = CallBuilder.append(calls, _setVotingContractStatus(rateKeeper, VotingContractStatus.UNVOTE_ONLY));
+    // @dev Hook which is called when rate keeper is configured
+    // @param rateKeeper - rate keeper address
+    // @param callData - call data to be executed
+    // @return calls - array of calls to be executed
+    function configure(address rateKeeper, bytes calldata callData) external view returns (Call[] memory) {
+        bytes4 selector = bytes4(callData);
+        if (selector == IControlledTrait.setController.selector || selector == _getAddTokenSelector(rateKeeper)) {
+            revert ForbiddenConfigurationCallException(selector);
         }
+        return CallBuilder.build(Call({target: rateKeeper, callData: callData}));
     }
 
-    //
-    // INTERNAL
-    //
-    function _rateKeeperByPool(address pool) internal view returns (address) {
-        address quotaKeeper = IPoolV3(pool).poolQuotaKeeper();
-        // `gauge` method is legacy method originally designed in V3_0
-        return IPoolQuotaKeeperV3(quotaKeeper).gauge();
+    // --------- //
+    // INTERNALS //
+    // --------- //
+
+    function _quotaKeeper(address pool) internal view returns (address) {
+        return IPoolV3(pool).poolQuotaKeeper();
+    }
+
+    function _rateKeeper(address pool) internal view returns (address) {
+        return IPoolQuotaKeeperV3(_quotaKeeper(pool)).gauge();
     }
 
     function _getRateKeeperType(address rateKeeper) internal view returns (bytes32) {
@@ -159,39 +181,51 @@ contract RateKeeperFactory is AbstractFactory, MarketHookFactory, IRateKeeperFac
         }
     }
 
-    function _isVotingContract(address rateKeeper) internal view returns (bool) {
-        try IVotingContract(rateKeeper).voter() returns (address) {
-            return true;
-        } catch {
-            return false;
+    function _getAddTokenSelector(address rateKeeper) internal view returns (bytes4) {
+        bytes32 type_ = _getRateKeeperType(rateKeeper);
+        if (type_ == "RK_GAUGE") return IGaugeV3.addQuotaToken.selector;
+        if (type_ == "RK_TUMBLER") return ITumblerV3.addToken.selector;
+        return IRateKeeper.addToken.selector;
+    }
+
+    function _installRateKeeper(address rateKeeper) internal view returns (Call[] memory calls) {
+        if (_isVotingContract(rateKeeper)) {
+            calls = CallBuilder.build(_setVotingContractStatus(rateKeeper, VotingContractStatus.ALLOWED));
         }
     }
 
-    function _gaugeSetFrozenEpoch(address rateKeeper) internal pure returns (Call memory call) {
-        call = Call({target: rateKeeper, callData: abi.encodeCall(IGaugeV3.setFrozenEpoch, true)});
+    function _uninstallRateKeeper(address rateKeeper) internal view returns (Call[] memory calls) {
+        bytes32 type_ = _getRateKeeperType(rateKeeper);
+        if (type_ == "RK_GAUGE") {
+            calls = CallBuilder.build(Call(rateKeeper, abi.encodeCall(IGaugeV3.setFrozenEpoch, true)));
+        } else {
+            // TODO: add generic function for all rate keepers
+        }
+
+        if (_isVotingContract(rateKeeper)) {
+            calls = CallBuilder.append(calls, _setVotingContractStatus(rateKeeper, VotingContractStatus.UNVOTE_ONLY));
+        }
     }
 
-    // GENERATION
-    function _addToken(address rateKeeper, address token, bytes32 type_) internal pure returns (Call memory call) {
+    function _addToken(address rateKeeper, address token, bytes32 type_) internal pure returns (Call memory) {
         bytes memory callData;
         if (type_ == "RK_GAUGE") {
-            // {token: token, minRate: 1, maxRate: 1}
             callData = abi.encodeCall(IGaugeV3.addQuotaToken, (token, 1, 1));
         } else if (type_ == "RK_TUMBLER") {
-            // ({token: token, rate: 1})
             callData = abi.encodeCall(ITumblerV3.addToken, (token, 1));
         } else {
             callData = abi.encodeCall(IRateKeeper.addToken, token);
         }
-        call = Call({target: rateKeeper, callData: callData});
+        return Call({target: rateKeeper, callData: callData});
     }
 
     function _setVotingContractStatus(address rateKeeper, VotingContractStatus status)
         internal
         view
-        returns (Call memory call)
+        returns (Call memory)
     {
-        call = Call({
+        // TODO: replace with call to market configurator which forwards to MCLegacy
+        return Call({
             target: marketConfiguratorLegacy,
             callData: abi.encodeCall(IGearStakingV3.setVotingContractStatus, (rateKeeper, status))
         });

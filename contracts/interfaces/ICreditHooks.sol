@@ -35,7 +35,7 @@ interface ICreditHooks {
         external
         returns (Call[] memory calls);
 
-    function onUpdateLossLiquidator(address creditManager, address lossLiquidator)
+    function onUpdateLossLiquidator(address creditManager, address newLossLiquidator, address oldLossLiquidator)
         external
         returns (Call[] memory calls);
 }

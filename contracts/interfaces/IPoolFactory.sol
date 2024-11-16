@@ -5,10 +5,12 @@ pragma solidity ^0.8.23;
 
 import {IConfiguratingFactory} from "./IConfiguratingFactory.sol";
 import {IMarketHooks} from "./IMarketHooks.sol";
-import {Call, DeployResult} from "./Types.sol";
+import {DeployResult} from "./Types.sol";
 
 interface IPoolFactory is IMarketHooks, IConfiguratingFactory {
-    function deployPool(address asset, string calldata name, string calldata symbol)
+    // TODO: consider adding a preview method that returns pool and quota keeper address
+    // same for other factories
+    function deployPool(address underlying, string calldata name, string calldata symbol)
         external
         returns (DeployResult memory);
 }

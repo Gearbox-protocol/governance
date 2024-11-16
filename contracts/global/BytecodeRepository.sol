@@ -207,20 +207,7 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
         bytes memory constructorParams,
         bytes32 salt
     ) external override returns (address newContract) {
-        bytes32 _contractType = _domain;
-
-        // Ignores postfix if it's empty; otherwise, concatenate domain_postfix
-        if (_postfix != 0) {
-            string memory contractTypeWithDomain =
-                string.concat(_domain.fromSmallString(), "_", _postfix.fromSmallString());
-
-            if (bytes(contractTypeWithDomain).length > 31) {
-                revert TooLongContractTypeException(contractTypeWithDomain);
-            }
-            _contractType = contractTypeWithDomain.toSmallString();
-        }
-
-        return deploy(_contractType, _version, constructorParams, salt);
+        return deploy(_getContractType(_domain, _postfix), _version, constructorParams, salt);
     }
 
     function uploadByteCode(
@@ -315,6 +302,19 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
     {
         return Create2.computeAddress(
             salt, keccak256(_getBytecodeWithParamsOrRevert(_contractType, _version, constructorParams))
+        );
+    }
+
+    function computeAddressByDomain(
+        bytes32 _domain,
+        bytes32 _postfix,
+        uint256 _version,
+        bytes memory constructorParams,
+        bytes32 salt
+    ) external view override returns (address) {
+        return Create2.computeAddress(
+            salt,
+            keccak256(_getBytecodeWithParamsOrRevert(_getContractType(_domain, _postfix), _version, constructorParams))
         );
     }
 
@@ -416,6 +416,17 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
         }
 
         bytecodeWithParams = abi.encodePacked(bytecode, constructorParams);
+    }
+
+    function _getContractType(bytes32 domain, bytes32 postfix) internal pure returns (bytes32) {
+        // Ignores postfix if it's empty; otherwise, concatenate domain_postfix
+        if (postfix == 0) return domain;
+        string memory contractType_ = string.concat(domain.fromSmallString(), "_", postfix.fromSmallString());
+        // FIXME: check is redundant since it is also present in `toSmallString`
+        if (bytes(contractType_).length > 31) {
+            revert TooLongContractTypeException(contractType_);
+        }
+        return contractType_.toSmallString();
     }
 
     // TODO:

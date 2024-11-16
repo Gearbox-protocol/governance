@@ -7,5 +7,5 @@ import {IMarketHooks} from "./IMarketHooks.sol";
 import {DeployResult} from "./Types.sol";
 
 interface IPriceOracleFactory is IMarketHooks {
-    function deployPriceOracle(bytes calldata constructorParams) external returns (DeployResult memory);
+    function deployPriceOracle(address pool) external returns (DeployResult memory);
 }

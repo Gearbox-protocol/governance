@@ -32,7 +32,7 @@ import {
 } from "../libraries/ContractLiterals.sol";
 import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
 import {IContractsRegister} from "../interfaces/extensions/IContractsRegister.sol";
-import {Call, DeployResult} from "../interfaces/Types.sol";
+import {Call, DeployParams, DeployResult} from "../interfaces/Types.sol";
 import {CallBuilder} from "../libraries/CallBuilder.sol";
 
 interface ICreditConfig {
@@ -47,7 +47,6 @@ struct CreditSuiteDeployParams {
     string name;
     address degenNFT;
     bool expirable;
-    //
     uint256 debtLimit;
     uint128 minDebt;
     uint128 maxDebt;
@@ -58,7 +57,7 @@ struct CreditSuiteDeployParams {
 }
 
 // CreditFactoryV3 is responsible for deploying the entire credit suite and managing specific management functions.
-contract CreditFactoryV3 is AbstractFactory, ICreditFactory {
+contract CreditFactory is AbstractFactory, ICreditFactory {
     using CallBuilder for Call;
     /// @notice Contract version
 
@@ -75,6 +74,8 @@ contract CreditFactoryV3 is AbstractFactory, ICreditFactory {
     address public immutable weth;
 
     constructor(address _addressProvider) AbstractFactory(_addressProvider) {
+        // shouldn't factory be the owner?
+        // FIXME: all credit factories of version 3_1x should be able to access these two contracts
         accountFactory = address(new AccountFactoryV3(msg.sender));
         botList = address(new BotListV3(msg.sender));
         weth = IAddressProvider(_addressProvider).getAddressOrRevert(AP_WETH_TOKEN, NO_VERSION_CONTROL);
@@ -87,7 +88,7 @@ contract CreditFactoryV3 is AbstractFactory, ICreditFactory {
     function deployCreditSuite(address pool, bytes calldata encodedParams)
         external
         override
-        marketConfiguratorOnly
+        marketConfiguratorsOnly
         returns (DeployResult memory)
     {
         // Control pool version
@@ -143,7 +144,7 @@ contract CreditFactoryV3 is AbstractFactory, ICreditFactory {
     function configure(address creditManager, bytes calldata callData)
         external
         override
-        marketConfiguratorOnly
+        marketConfiguratorsOnly
         returns (Call[] memory calls)
     {
         bytes4 selector = bytes4(callData);
@@ -184,12 +185,12 @@ contract CreditFactoryV3 is AbstractFactory, ICreditFactory {
     //
     // CREDIT HOOKS
     //
-    function onUpdatePriceOracle(address creditManager, address priceOracle, address prevOracle)
+    function onUpdatePriceOracle(address creditManager, address newPriceOracle, address)
         external
         view
         returns (Call[] memory calls)
     {
-        calls = CallBuilder.build(_updatePriceOracle(creditManager, priceOracle));
+        calls = CallBuilder.build(_updatePriceOracle(creditManager, newPriceOracle));
     }
 
     function onAddEmergencyLiquidator(address creditManager, address liquidator)
@@ -208,12 +209,12 @@ contract CreditFactoryV3 is AbstractFactory, ICreditFactory {
         calls = CallBuilder.build(_removeEmergencyLiquidator(creditManager, liquidator));
     }
 
-    function onUpdateLossLiquidator(address creditManager, address lossLiquidator)
+    function onUpdateLossLiquidator(address creditManager, address newLossLiquidator, address)
         external
         view
         returns (Call[] memory calls)
     {
-        calls = CallBuilder.build(_updateLossLiquidator(creditManager, lossLiquidator));
+        calls = CallBuilder.build(_updateLossLiquidator(creditManager, newLossLiquidator));
     }
 
     //

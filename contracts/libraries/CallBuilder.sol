@@ -80,4 +80,16 @@ library CallBuilder {
         }
         newCalls[numCalls] = call;
     }
+
+    function extend(Call[] memory calls1, Call[] memory calls2) internal pure returns (Call[] memory newCalls) {
+        uint256 num1 = calls1.length;
+        uint256 num2 = calls2.length;
+        newCalls = new Call[](num1 + num2);
+        for (uint256 i; i < num1; ++i) {
+            newCalls[i] = calls1[i];
+        }
+        for (uint256 i; i < num2; ++i) {
+            newCalls[num1 + i] = calls2[i];
+        }
+    }
 }

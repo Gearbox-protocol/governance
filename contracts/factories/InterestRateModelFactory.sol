@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: BUSL-1.1
 // Gearbox Protocol. Generalized leverage for DeFi protocols
 // (c) Gearbox Foundation, 2024.
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.23;
 
 import {AbstractFactory} from "./AbstractFactory.sol";
+import {MarketHookFactory} from "./MarketHookFactory.sol";
 import {IInterestRateModelFactory} from "../interfaces/IInterestRateModelFactory.sol";
 import {AP_INTEREST_MODEL_FACTORY, DOMAIN_IRM} from "../libraries/ContractLiterals.sol";
-import {DeployResult, Call} from "../interfaces/Types.sol";
+import {Call, DeployParams, DeployResult} from "../interfaces/Types.sol";
 import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
 import {IMarketConfigurator} from "../interfaces/IMarketConfigurator.sol";
 
-contract InterestRateModelFactory is AbstractFactory, IInterestRateModelFactory {
-    // Contract meta data
+contract InterestRateModelFactory is AbstractFactory, MarketHookFactory, IInterestRateModelFactory {
+    /// @notice Contract version
     uint256 public constant override version = 3_10;
+
+    /// @notice Contract type
     bytes32 public constant override contractType = AP_INTEREST_MODEL_FACTORY;
+
+    error InvalidConstructorParamsException();
 
     constructor(address _addressProvider) AbstractFactory(_addressProvider) {}
 
@@ -22,22 +27,34 @@ contract InterestRateModelFactory is AbstractFactory, IInterestRateModelFactory 
     // @param postfix - postfix for the interest rate model
     // @param encodedParams - encoded parameters for the interest rate model
     // @return result - deploy result
-    function deployInterestRateModel(bytes32 postfix, bytes calldata constructorParams)
+    function deployInterestRateModel(address pool, DeployParams calldata params)
         external
         override
         returns (DeployResult memory)
     {
-        // Get required addresses from MarketConfigurator
-        address acl = IMarketConfigurator(msg.sender).acl();
-        // QUESTION: how to add ACL here?
-        address model = IBytecodeRepository(bytecodeRepository).deployByDomain(
-            DOMAIN_IRM, postfix, version, constructorParams, bytes32(bytes20(msg.sender))
-        );
+        if (params.postfix != "IRM_LINEAR") {
+            (address decodedAddressProvider, address decodedPool) =
+                abi.decode(params.constructorParams[:64], (address, address));
+            if (decodedAddressProvider != addressProvider || decodedPool != pool) {
+                revert InvalidConstructorParamsException();
+            }
+        }
+
+        address irm = _deployByDomain({
+            domain: DOMAIN_IRM,
+            postfix: params.postfix,
+            version_: version,
+            constructorParams: params.constructorParams,
+            salt: bytes32(bytes20(msg.sender))
+        });
 
         address[] memory accessList = new address[](1);
-        accessList[0] = model;
+        accessList[0] = irm;
 
-        return DeployResult({newContract: model, accessList: accessList, onInstallOps: new Call[](0)});
+        // TODO:
+        // if (_isVotingContract()) add onInstallOps
+
+        return DeployResult({newContract: irm, accessList: accessList, onInstallOps: new Call[](0)});
     }
 
     // @dev Hook which is called when interest rate model is configured
@@ -46,5 +63,6 @@ contract InterestRateModelFactory is AbstractFactory, IInterestRateModelFactory 
     // @return calls - array of calls to be executed
     function configure(address irm, bytes calldata callData) external view returns (Call[] memory calls) {
         // TODO: implement
+        // just forbid setController?
     }
 }
