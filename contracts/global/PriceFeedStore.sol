@@ -43,10 +43,6 @@ contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedSto
     /// @notice Mapping from price feed address to its data
     mapping(address => PriceFeedInfo) public priceFeedInfo;
 
-    constructor(address owner) {
-        _transferOwnership(owner);
-    }
-
     /// @notice Returns the list of price feeds available for a token
     function getPriceFeeds(address token) external view returns (address[] memory priceFeeds) {
         return _allowedPriceFeeds[token].values();
