@@ -11,6 +11,7 @@ import {AP_BYTECODE_REPOSITORY} from "../libraries/ContractLiterals.sol";
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/SanityCheckTrait.sol";
 
+import {AuditManager} from "./AuditManager.sol";
 import {SecurityReport, Source, BytecodeInfo, AuditorInfo} from "../interfaces/Types.sol";
 
 // EXCEPTIONS
@@ -42,7 +43,7 @@ import {LibString} from "@solady/utils/LibString.sol";
  *
  * This structure ensures consistency and clarity when deploying and managing contracts within the system.
  */
-contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeRepository {
+contract BytecodeRepository is SanityCheckTrait, AuditManager, IBytecodeRepository {
     using EnumerableSet for EnumerableSet.UintSet;
     using EnumerableSet for EnumerableSet.AddressSet;
     using LibString for bytes32;
@@ -83,12 +84,6 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
     // Thrown if someone tries to deploy a contract which wasn't audited enough
     error ContractIsNotAuditedException();
 
-    // Thrown when an attempt is made to add an auditor that already exists
-    error AuditorAlreadyAddedException();
-
-    // Thrown when an auditor is not found in the repository
-    error AuditorNotFoundException();
-
     // Thrown if the caller is not the deployer of the bytecode
     error NotDeployerException();
 
@@ -105,12 +100,6 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
     // Event emitted when a contract is audited by an auditor
     event AuditContract(address indexed auditor, bytes32 indexed contractType, uint256 indexed version);
 
-    // Event emitted when a new auditor is added to the repository
-    event AddAuditor(address indexed auditor, string name);
-
-    // Event emitted when an auditor is forbidden from the repository
-    event ForbidAuditor(address indexed auditor, string name);
-
     // Event emitted when a new source is added to the bytecode information
     event SourceAdded(bytes32 indexed contractType, uint256 indexed version, string comment, string linkToSource);
 
@@ -125,14 +114,6 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
     mapping(bytes32 => bytes) internal _bytecode;
 
     EnumerableSet.UintSet internal _hashStorage;
-
-    // Auditors
-
-    // Keep all audtors joined the repository
-    EnumerableSet.AddressSet internal _auditors;
-
-    // Store auditors info
-    mapping(address => AuditorInfo) public auditorInfo;
 
     // Postfixes are used to deploy unique contract versions inherited from
     // the base contract but differ when used with specific tokens.
@@ -325,69 +306,25 @@ contract BytecodeRepository is Ownable2Step, SanityCheckTrait, IBytecodeReposito
      * @return bool True if the contract has been audited by at least AUDITOR_THRESHOLD auditors, false otherwise.
      */
     function isDeployPermitted(bytes32 _contractType, uint256 _version) public view returns (bool) {
-        BytecodeInfo memory info = bytecodeInfo[computeBytecodeHash(_contractType, _version)];
+        uint256 numAuditors = _getUniqueNonForbiddenAuditorCount(computeBytecodeHash(_contractType, _version));
 
         // QUESTION: should we have more complex rules depending on domain?
-        return info.auditors.length >= AUDITOR_THRESHOLD;
-    }
-
-    //
-    // AUDITOR MANAGEMENT
-    //
-    function addAuditor(address auditor, string memory _name) external onlyOwner nonZeroAddress(auditor) {
-        if (bytes(_name).length == 0) {
-            revert IncorrectParameterException();
-        }
-        if (_auditors.contains(auditor)) {
-            revert AuditorAlreadyAddedException();
-        }
-
-        _auditors.add(auditor);
-        auditorInfo[auditor].name = _name;
-        emit AddAuditor(auditor, _name);
-    }
-
-    function forbidAuditor(address auditor) external onlyOwner nonZeroAddress(auditor) {
-        if (!_auditors.contains(auditor)) {
-            revert AuditorNotFoundException();
-        }
-
-        auditorInfo[auditor].forbidden = true;
-        emit ForbidAuditor(auditor, auditorInfo[auditor].name);
+        return numAuditors >= AUDITOR_THRESHOLD;
     }
 
     /**
      * @notice Adds a security report for a specific contract type and version.
      * @param _contractType The type of the contract for which the security report is being added.
      * @param _version The version of the contract for which the security report is being added.
-     * @param auditor The address of the auditor adding the security report.
      * @param reportUrl The URL of the security report.
      * @dev Reverts if the caller is not a registered auditor or if the auditor is forbidden.
-     *      If the auditor is not already associated with the contract, they are added to the list of auditors.
+     *      The corresponding access control logic is implemented in AuditManager
      *      Emits an AuditContract event upon successful addition of the report.
      */
-    function addSecurityReport(bytes32 _contractType, uint256 _version, address auditor, string calldata reportUrl)
-        external
-    {
-        if (!_auditors.contains(msg.sender) || auditorInfo[msg.sender].forbidden) {
-            revert NoValidAuditorPermissionsAException();
-        }
-
+    function addSecurityReport(bytes32 _contractType, uint256 _version, string calldata reportUrl) external {
         bytes32 bytecodeHash = computeBytecodeHash(_contractType, _version);
-        BytecodeInfo storage info = bytecodeInfo[bytecodeHash];
 
-        bool found;
-        for (uint256 i = 0; i < info.auditors.length; i++) {
-            if (info.auditors[i] == auditor) {
-                found = true;
-            }
-        }
-
-        if (!found) {
-            info.auditors.push(msg.sender);
-        }
-
-        info.reports.push(SecurityReport({auditor: msg.sender, url: reportUrl}));
+        _addSecurityReport(bytecodeHash, msg.sender, reportUrl);
 
         emit AuditContract(msg.sender, _contractType, _version);
     }

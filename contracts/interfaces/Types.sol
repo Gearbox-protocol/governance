@@ -3,6 +3,8 @@
 // (c) Gearbox Foundation, 2023.
 pragma solidity ^0.8.17;
 
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 struct Call {
     address target;
     bytes callData;
@@ -12,6 +14,14 @@ struct DeployResult {
     address newContract;
     address[] accessList;
     Call[] onInstallOps;
+}
+
+struct PriceFeedInfo {
+    address author;
+    uint32 stalenessPeriod;
+    bytes32 priceFeedType;
+    uint256 version;
+    SecurityReport[] reports;
 }
 
 // The `BytecodeInfo` struct holds metadata about a bytecode in BytecodeRepository
@@ -27,7 +37,6 @@ struct BytecodeInfo {
     bytes32 contractType;
     uint256 version;
     Source[] sources;
-    address[] auditors;
     SecurityReport[] reports;
 }
 
