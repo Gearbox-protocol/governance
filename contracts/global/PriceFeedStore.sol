@@ -3,17 +3,18 @@
 // (c) Gearbox Foundation, 2024.
 pragma solidity ^0.8.23;
 
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/SanityCheckTrait.sol";
 import {PriceFeedValidationTrait} from "@gearbox-protocol/core-v3/contracts/traits/PriceFeedValidationTrait.sol";
 import {IPriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeed.sol";
 
-import {AuditManager} from "./AuditManager.sol";
 import {IPriceFeedStore} from "../interfaces/IPriceFeedStore.sol";
 import {AP_PRICE_FEED_STORE} from "../libraries/ContractLiterals.sol";
 import {SecurityReport, PriceFeedInfo, AuditorInfo} from "../interfaces/Types.sol";
 
-contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedStore {
+contract PriceFeedStore is Ownable2Step, SanityCheckTrait, PriceFeedValidationTrait, IPriceFeedStore {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     //
@@ -23,9 +24,6 @@ contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedSto
     /// @notice Meta info about contract type & version
     uint256 public constant override version = 3_10;
     bytes32 public constant override contractType = AP_PRICE_FEED_STORE;
-
-    /// @notice Threshold on number of auditors required to add a price feed
-    uint256 public constant AUDITOR_THRESHOLD = 2;
 
     //
     // VARIABLES
@@ -44,17 +42,65 @@ contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedSto
     mapping(address => PriceFeedInfo) public priceFeedInfo;
 
     /// @notice Returns the list of price feeds available for a token
-    function getPriceFeeds(address token) external view returns (address[] memory priceFeeds) {
-        return _allowedPriceFeeds[token].values();
+    function getPriceFeeds(address token) external view returns (address[] memory) {
+        address[] memory priceFeeds = _allowedPriceFeeds[token].values();
+        address[] memory equivalentPriceFeeds = _allowedPriceFeeds[equivalentTokens[token]].values();
+
+        return _mergeArrays(priceFeeds, equivalentPriceFeeds);
+    }
+
+    /// @dev Merges two address arrays so that there are no repetitions
+    function _mergeArrays(address[] memory a0, address[] memory a1) internal pure returns (address[] memory result) {
+        uint256 len0 = a0.length;
+        uint256 len1 = a1.length;
+
+        address[] memory _res = new address[](len0 + len1);
+
+        for (uint256 i = 0; i < len0;) {
+            _res[i] = a0[i];
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        uint256 k = len0;
+
+        for (uint256 i = 0; i < len1;) {
+            for (uint256 j = 0; j <= k;) {
+                if (j == k) {
+                    _res[k] = a1[i];
+                    ++k;
+                    break;
+                }
+
+                if (_res[j] == a1[i]) break;
+
+                unchecked {
+                    ++j;
+                }
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        result = new address[](k);
+
+        for (uint256 i = 0; i < k;) {
+            result[i] = _res[i];
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /// @notice Returns whether a price feed is allowed to be used for a token
     function isAllowedPriceFeed(address token, address priceFeed) external view returns (bool) {
-        return _priceFeedVerified(priceFeed)
-            && (
-                _allowedPriceFeeds[equivalentTokens[token]].contains(priceFeed)
-                    || _allowedPriceFeeds[token].contains(priceFeed)
-            );
+        return _allowedPriceFeeds[equivalentTokens[token]].contains(priceFeed)
+            || _allowedPriceFeeds[token].contains(priceFeed);
     }
 
     /// @notice Returns the staleness period for a price feed
@@ -62,31 +108,11 @@ contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedSto
         return priceFeedInfo[priceFeed].stalenessPeriod;
     }
 
-    function computePriceFeedHash(address priceFeed) public pure returns (bytes32) {
-        return keccak256(abi.encode(priceFeed));
-    }
-
-    /**
-     * @notice Adds a security report for a price feed.
-     * @param priceFeed The price feed for which an audit is added.
-     * @param reportUrl The URL of the security report.
-     * @dev Reverts if the caller is not a registered auditor or if the auditor is forbidden.
-     *      The corresponding access control logic is implemented in AuditManager
-     *      Emits an AuditPriceFeed event upon successful addition of the report.
-     */
-    function addSecurityReport(address priceFeed, string calldata reportUrl) external {
-        bytes32 priceFeedHash = computePriceFeedHash(priceFeed);
-
-        _addSecurityReport(priceFeedHash, msg.sender, reportUrl);
-
-        emit AuditPriceFeed(msg.sender, priceFeed);
-    }
-
     /**
      * @notice Adds a new price feed
      * @param priceFeed The address of the new price feed
      * @param stalenessPeriod Staleness period of the new price feed
-     * @dev Reverts if the price feed's latest value is not current based on the staleness period
+     * @dev Reverts if the price feed's result is stale based on the staleness period
      */
     function addPriceFeed(address priceFeed, uint32 stalenessPeriod) external onlyOwner nonZeroAddress(priceFeed) {
         if (_knownPriceFeeds.contains(priceFeed)) revert PriceFeedAlreadyAddedException(priceFeed);
@@ -149,6 +175,21 @@ contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedSto
     }
 
     /**
+     * @notice Forbids a price feed for use with a particular token
+     * @param token Address of the token
+     * @param priceFeed Address of the price feed
+     * @dev Reverts if the price feed is not added to the global list or the per-token list
+     */
+    function forbidPriceFeed(address token, address priceFeed) external onlyOwner nonZeroAddress(token) {
+        if (!_knownPriceFeeds.contains(priceFeed)) revert PriceFeedNotKnownException(priceFeed);
+        if (!_allowedPriceFeeds[token].contains(priceFeed)) revert PriceFeedIsNotAllowedException(token, priceFeed);
+
+        _allowedPriceFeeds[token].remove(priceFeed);
+
+        emit ForbidPriceFeed(token, priceFeed);
+    }
+
+    /**
      * @notice Sets an equivalent for a token
      * @param token Address of the token
      * @param equivalentToken Address of the equivalent token
@@ -165,12 +206,5 @@ contract PriceFeedStore is PriceFeedValidationTrait, AuditManager, IPriceFeedSto
             equivalentTokens[token] = equivalentToken;
             emit SetEquivalentToken(token, equivalentToken);
         }
-    }
-
-    /// @dev Returns whether a price feed has enough audits to be used in production
-    function _priceFeedVerified(address priceFeed) internal view returns (bool) {
-        uint256 numAuditors = _getUniqueNonForbiddenAuditorCount(computePriceFeedHash(priceFeed));
-
-        return numAuditors >= AUDITOR_THRESHOLD;
     }
 }
