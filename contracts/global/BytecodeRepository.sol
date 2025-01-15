@@ -15,10 +15,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {LibString} from "@solady/utils/LibString.sol";
 import "@gearbox-protocol/core-v3/contracts/interfaces/IExceptions.sol";
 
-import {Bytecode, AuditorSignature} from "../interfaces/Types.sol";
+import {Bytecode, BytecodePointer, AuditorSignature} from "../interfaces/Types.sol";
 import {EIP712Mainnet} from "../helpers/EIP712Mainnet.sol";
 import {Domain} from "../libraries/Domain.sol";
 import {ImmutableOwnableTrait} from "../traits/ImmutableOwnableTrait.sol";
+import {SSTORE2} from "@solady/utils/SSTORE2.sol";
 /**
  * @title BytecodeRepository
  *
@@ -52,6 +53,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     using LibString for string;
     using LibString for uint256;
     using Domain for string;
+    using SSTORE2 for bytes;
     //
     // CONSTANTS
     //
@@ -71,7 +73,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     //
 
     // bytecodeHash =>  Bytecode
-    mapping(bytes32 => Bytecode) internal _bytecodeByHash;
+    mapping(bytes32 => BytecodePointer) internal _bytecodeByHash;
 
     // bytecodeHash => array of AuditorSignature
     mapping(bytes32 => AuditorSignature[]) internal _auditorSignaturesByHash;
@@ -118,7 +120,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     /// @notice Computes a unique hash for _bytecode metadata
     /// @param _bytecode Bytecode metadata including contract type, version, _bytecode, author and source
     /// @return bytes32 Hash of the metadata
-    function computeBytecodeHash(Bytecode calldata _bytecode) public pure returns (bytes32) {
+    function computeBytecodeHash(Bytecode memory _bytecode) public pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 BYTECODE_TYPEHASH,
@@ -134,7 +136,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     /// @notice Uploads new _bytecode to the repository
     /// @param _bytecode Bytecode metadata to upload
     /// @dev Only the author can upload on mainnet
-    function uploadBytecode(Bytecode calldata _bytecode) external nonZeroAddress(_bytecode.author) {
+    function uploadBytecode(Bytecode memory _bytecode) external nonZeroAddress(_bytecode.author) {
         if (block.chainid == 1 && msg.sender != _bytecode.author) {
             revert OnlyAuthorCanSyncException();
         }
@@ -159,7 +161,16 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             revert ContractNameVersionAlreadyExistsException();
         }
 
-        _bytecodeByHash[bytecodeHash] = _bytecode;
+        address initCodePointer = _bytecode.initCode.write();
+
+        _bytecodeByHash[bytecodeHash] = BytecodePointer({
+            contractType: _bytecode.contractType,
+            version: _bytecode.version,
+            initCodePointer: initCodePointer,
+            author: _bytecode.author,
+            source: _bytecode.source,
+            authorSignature: _bytecode.authorSignature
+        });
 
         emit UploadBytecode(
             bytecodeHash,
@@ -190,9 +201,9 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             revert BytecodeIsNotAuditedException();
         }
 
-        Bytecode storage _bytecode = _bytecodeByHash[bytecodeHash];
+        BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
 
-        bytes memory initCode = _bytecode.initCode;
+        bytes memory initCode = SSTORE2.read(_bytecode.initCodePointer);
 
         // Revert if the initCode is forbidden
         revertIfInitCodeForbidden(initCode);
@@ -245,10 +256,12 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         if (bytecodeHash == 0) {
             revert BytecodeIsNotApprovedException(_contractType, _version);
         }
-        Bytecode storage _bytecode = _bytecodeByHash[bytecodeHash];
+        BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
+
+        bytes memory initCode = SSTORE2.read(_bytecode.initCodePointer);
 
         // Combine code + constructor params
-        bytes memory bytecodeWithParams = abi.encodePacked(_bytecode.initCode, constructorParams);
+        bytes memory bytecodeWithParams = abi.encodePacked(initCode, constructorParams);
 
         bytes32 saltUnique = keccak256(abi.encode(salt, deployer));
 
@@ -293,7 +306,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
 
         emit BytecodeSigned(bytecodeHash, signer, reportUrl, signature);
 
-        Bytecode storage _bytecode = _bytecodeByHash[bytecodeHash];
+        BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
 
         bytes32 _contractType = _bytecode.contractType;
         address author = _bytecode.author;
@@ -320,7 +333,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         allowedSystemContracts[bytecodeHash] = true;
 
         if (isBytecodeUploaded(bytecodeHash) && isBytecodeAudited(bytecodeHash)) {
-            Bytecode storage _bytecode = _bytecodeByHash[bytecodeHash];
+            BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
             contractTypeOwner[_bytecode.contractType] = _bytecode.author;
             _approveContract(_bytecode.contractType, _bytecode.version, bytecodeHash, _bytecode.author);
         }
@@ -539,7 +552,15 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     }
 
     function bytecodeByHash(bytes32 bytecodeHash) external view returns (Bytecode memory) {
-        return _bytecodeByHash[bytecodeHash];
+        BytecodePointer memory _bytecode = _bytecodeByHash[bytecodeHash];
+        return Bytecode({
+            contractType: _bytecode.contractType,
+            version: _bytecode.version,
+            initCode: SSTORE2.read(_bytecode.initCodePointer),
+            author: _bytecode.author,
+            source: _bytecode.source,
+            authorSignature: _bytecode.authorSignature
+        });
     }
 
     function domainSeparatorV4() external view returns (bytes32) {

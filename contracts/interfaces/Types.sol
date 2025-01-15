@@ -64,6 +64,15 @@ struct Bytecode {
     bytes authorSignature;
 }
 
+struct BytecodePointer {
+    bytes32 contractType;
+    uint256 version;
+    address initCodePointer; // store it's hash as well
+    address author;
+    string source;
+    bytes authorSignature;
+}
+
 struct AuditorSignature {
     string reportUrl;
     address auditor;

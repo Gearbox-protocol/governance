@@ -65,7 +65,7 @@ contract BCRHelpers is SignatureHelper {
         uint256 gasAfter = gasleft();
         uint256 used = gasBefore - gasAfter;
 
-        if (used > 20e6) {
+        if (used > 1e6) {
             console.log("contractName", _contractName.fromSmallString());
             console.log("gasUsed", gasBefore - gasAfter);
             console.log("size", bytecode.initCode.length);

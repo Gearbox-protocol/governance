@@ -29,7 +29,7 @@ contract PermissionlessScript is Script, GlobalSetup {
     function _fundActors() internal {
         address[6] memory actors = [instanceOwner, author, dao, auditor, signer1, signer2];
         for (uint256 i = 0; i < actors.length; ++i) {
-            payable(actors[i]).transfer(1 ether);
+            payable(actors[i]).transfer(10 ether);
         }
     }
 }
