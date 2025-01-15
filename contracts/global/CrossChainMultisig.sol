@@ -104,6 +104,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
             signedProposal.calls.push(calls[i]);
         }
         signedProposal.prevHash = prevHash;
+        signedProposal.name = name;
 
         _connectedProposalHashes[lastProposalHash].add(proposalHash);
 

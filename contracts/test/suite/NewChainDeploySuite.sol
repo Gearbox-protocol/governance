@@ -89,7 +89,7 @@ contract NewChainDeploySuite is Test, GlobalSetup {
         // activate instance
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         calls[0] = _generateActivateCall(1, instanceOwner, address(0), WETH, GEAR);
-        _submitProposalAndSign(calls);
+        _submitProposalAndSign("Activate instance", calls);
 
         // Configure instance
         _setupPriceFeedStore();

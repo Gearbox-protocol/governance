@@ -7,6 +7,8 @@ import {SignatureHelper} from "./SignatureHelper.sol";
 import {CrossChainMultisig} from "../../../contracts/global/CrossChainMultisig.sol";
 import {CrossChainCall, SignedProposal} from "../../../contracts/interfaces/ICrossChainMultisig.sol";
 
+import {console} from "forge-std/console.sol";
+
 contract CCGHelper is SignatureHelper {
     // Core contracts
     CrossChainMultisig internal multisig;
@@ -46,9 +48,9 @@ contract CCGHelper is SignatureHelper {
         prevProposalHash = 0;
     }
 
-    function _submitProposal(CrossChainCall[] memory calls) internal {
+    function _submitProposal(string memory name, CrossChainCall[] memory calls) internal {
         vm.startPrank(dao);
-        multisig.submitProposal("test", calls, prevProposalHash);
+        multisig.submitProposal(name, calls, prevProposalHash);
         vm.stopPrank();
     }
 
@@ -72,8 +74,8 @@ contract CCGHelper is SignatureHelper {
         prevProposalHash = proposalHash;
     }
 
-    function _submitProposalAndSign(CrossChainCall[] memory calls) internal {
-        _submitProposal(calls);
+    function _submitProposalAndSign(string memory name, CrossChainCall[] memory calls) internal {
+        _submitProposal(name, calls);
         _signCurrentProposal();
     }
 
