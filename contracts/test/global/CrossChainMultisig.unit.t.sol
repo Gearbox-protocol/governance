@@ -71,16 +71,16 @@ contract CrossChainMultisigTest is Test {
 
         // Check events emitted during deployment
         vm.expectEmit(true, false, false, false);
-        emit ICrossChainMultisig.SignerAdded(signers[0]);
+        emit ICrossChainMultisig.AddSigner(signers[0]);
 
         vm.expectEmit(true, false, false, false);
-        emit ICrossChainMultisig.SignerAdded(signers[1]);
+        emit ICrossChainMultisig.AddSigner(signers[1]);
 
         vm.expectEmit(true, false, false, false);
-        emit ICrossChainMultisig.SignerAdded(signers[2]);
+        emit ICrossChainMultisig.AddSigner(signers[2]);
 
         vm.expectEmit(false, false, false, true);
-        emit ICrossChainMultisig.ConfirmationThresholdSet(THRESHOLD);
+        emit ICrossChainMultisig.SetConfirmationThreshold(THRESHOLD);
 
         // Re-deploy to verify events
         new CrossChainMultisigHarness(signers, THRESHOLD, owner);
@@ -288,10 +288,10 @@ contract CrossChainMultisigTest is Test {
         // Sign with second signer which should trigger execution
         // Check events emitted during execution
         vm.expectEmit(true, true, true, true);
-        emit ICrossChainMultisig.ProposalSigned(proposalHash, vm.addr(signer1PrivateKey));
+        emit ICrossChainMultisig.SignProposal(proposalHash, vm.addr(signer1PrivateKey));
 
         vm.expectEmit(true, true, true, true);
-        emit ICrossChainMultisig.ProposalExecuted(proposalHash);
+        emit ICrossChainMultisig.ExecuteProposal(proposalHash);
         bytes memory sig1 = _signProposalHash(signer1PrivateKey, proposalHash);
         multisig.signProposal(proposalHash, sig1);
 

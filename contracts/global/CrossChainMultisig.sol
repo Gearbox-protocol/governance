@@ -107,7 +107,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
         _connectedProposalHashes[lastProposalHash].add(proposalHash);
 
-        emit ProposalSubmitted(proposalHash);
+        emit SubmitProposal(proposalHash);
     }
 
     // @dev: Sign a proposal
@@ -127,7 +127,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
         uint256 validSignatures = _verifySignatures({signatures: signedProposal.signatures, proposalHash: proposalHash});
 
-        emit ProposalSigned(proposalHash, signer);
+        emit SignProposal(proposalHash, signer);
 
         if (validSignatures >= confirmationThreshold) {
             _verifyProposal({calls: signedProposal.calls, prevHash: signedProposal.prevHash});
@@ -204,7 +204,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         executedProposalHashes.push(proposalHash);
         lastProposalHash = proposalHash;
 
-        emit ProposalExecuted(proposalHash);
+        emit ExecuteProposal(proposalHash);
     }
 
     //
@@ -216,12 +216,12 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
     function _addSigner(address newSigner) internal {
         if (!_signers.add(newSigner)) revert SignerAlreadyExistsException();
-        emit SignerAdded(newSigner);
+        emit AddSigner(newSigner);
     }
 
     function removeSigner(address signer) external onlySelf {
         if (!_signers.remove(signer)) revert SignerDoesNotExistException();
-        emit SignerRemoved(signer);
+        emit RemoveSigner(signer);
     }
 
     function setConfirmationThreshold(uint8 newConfirmationThreshold) external onlySelf {
@@ -233,7 +233,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
             revert InvalidConfirmationThresholdValueException();
         }
         confirmationThreshold = newConfirmationThreshold; // U:[SM-1]
-        emit ConfirmationThresholdSet(newConfirmationThreshold); // U:[SM-1]
+        emit SetConfirmationThreshold(newConfirmationThreshold); // U:[SM-1]
     }
 
     //

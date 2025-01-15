@@ -12,28 +12,28 @@ interface ICrossChainMultisig is IVersion {
     //
     /// @notice Emitted when a new signer is added to the multisig
     /// @param signer Address of the newly added signer
-    event SignerAdded(address indexed signer);
+    event AddSigner(address indexed signer);
 
     /// @notice Emitted when a signer is removed from the multisig
     /// @param signer Address of the removed signer
-    event SignerRemoved(address indexed signer);
+    event RemoveSigner(address indexed signer);
 
     /// @notice Emitted when the confirmation threshold is updated
     /// @param newconfirmationThreshold New number of required signatures
-    event ConfirmationThresholdSet(uint8 newconfirmationThreshold);
+    event SetConfirmationThreshold(uint8 newconfirmationThreshold);
 
     /// @notice Emitted when a new proposal is submitted
     /// @param proposalHash Hash of the submitted proposal
-    event ProposalSubmitted(bytes32 indexed proposalHash);
+    event SubmitProposal(bytes32 indexed proposalHash);
 
     /// @notice Emitted when a signer signs a proposal
     /// @param proposalHash Hash of the signed proposal
     /// @param signer Address of the signer
-    event ProposalSigned(bytes32 indexed proposalHash, address indexed signer);
+    event SignProposal(bytes32 indexed proposalHash, address indexed signer);
 
     /// @notice Emitted when a proposal is successfully executed
     /// @param proposalHash Hash of the executed proposal
-    event ProposalExecuted(bytes32 indexed proposalHash);
+    event ExecuteProposal(bytes32 indexed proposalHash);
 
     // Errors
 
