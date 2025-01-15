@@ -15,6 +15,7 @@ struct CrossChainCall {
 }
 
 struct SignedProposal {
+    string name;
     bytes32 prevHash;
     CrossChainCall[] calls;
     bytes[] signatures;

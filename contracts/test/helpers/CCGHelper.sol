@@ -48,7 +48,7 @@ contract CCGHelper is SignatureHelper {
 
     function _submitProposal(CrossChainCall[] memory calls) internal {
         vm.startPrank(dao);
-        multisig.submitProposal(calls, prevProposalHash);
+        multisig.submitProposal("test", calls, prevProposalHash);
         vm.stopPrank();
     }
 
@@ -57,7 +57,8 @@ contract CCGHelper is SignatureHelper {
 
         SignedProposal memory currentProposal = multisig.signedProposals(currentProposalHashes[0]);
 
-        bytes32 proposalHash = multisig.hashProposal(currentProposal.calls, currentProposal.prevHash);
+        bytes32 proposalHash =
+            multisig.hashProposal(currentProposal.name, currentProposal.calls, currentProposal.prevHash);
 
         bytes memory signature1 =
             _sign(signer1Key, keccak256(abi.encodePacked("\x19\x01", _ccmDomainSeparator(), proposalHash)));

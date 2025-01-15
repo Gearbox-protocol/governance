@@ -35,7 +35,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     // EIP-712 type hash for Proposal only
     bytes32 public constant CROSS_CHAIN_CALL_TYPEHASH =
         keccak256("CrossChainCall(uint256 chainId,address target,bytes callData)");
-    bytes32 public constant PROPOSAL_TYPEHASH = keccak256("Proposal(bytes32 proposalHash,bytes32 prevHash)");
+    bytes32 public constant PROPOSAL_TYPEHASH = keccak256("Proposal(string name,bytes32 proposalHash,bytes32 prevHash)");
 
     uint8 public confirmationThreshold;
 
@@ -86,7 +86,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     // Executed by Gearbox DAO on Mainnet
     // @param: calls - Array of CrossChainCall structs
     // @param: prevHash - Hash of the previous proposal (zero if first proposal)
-    function submitProposal(CrossChainCall[] calldata calls, bytes32 prevHash)
+    function submitProposal(string calldata name, CrossChainCall[] calldata calls, bytes32 prevHash)
         external
         onlyOwner
         onlyOnMainnet
@@ -94,7 +94,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     {
         _verifyProposal({calls: calls, prevHash: prevHash});
 
-        bytes32 proposalHash = hashProposal({calls: calls, prevHash: prevHash});
+        bytes32 proposalHash = hashProposal({name: name, calls: calls, prevHash: prevHash});
 
         // Copy proposal to storage
         SignedProposal storage signedProposal = _signedProposals[proposalHash];
@@ -137,7 +137,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
     // @dev: Execute a proposal on other chain permissionlessly
     function executeProposal(SignedProposal calldata signedProposal) external onlyOnNotMainnet nonReentrant {
-        bytes32 proposalHash = hashProposal(signedProposal.calls, signedProposal.prevHash);
+        bytes32 proposalHash = hashProposal(signedProposal.name, signedProposal.calls, signedProposal.prevHash);
 
         // Check proposal is valid
         _verifyProposal({calls: signedProposal.calls, prevHash: signedProposal.prevHash});
@@ -243,14 +243,20 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         return keccak256(abi.encode(CROSS_CHAIN_CALL_TYPEHASH, call.chainId, call.target, call.callData));
     }
 
-    function hashProposal(CrossChainCall[] calldata calls, bytes32 prevHash) public view returns (bytes32) {
+    function hashProposal(string calldata name, CrossChainCall[] calldata calls, bytes32 prevHash)
+        public
+        view
+        returns (bytes32)
+    {
         bytes32[] memory callsHash = new bytes32[](calls.length);
         uint256 len = calls.length;
         for (uint256 i = 0; i < len; ++i) {
             callsHash[i] = hashCrossChainCall(calls[i]);
         }
 
-        return keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(abi.encodePacked(callsHash)), prevHash));
+        return keccak256(
+            abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes(name)), keccak256(abi.encodePacked(callsHash)), prevHash)
+        );
     }
 
     //

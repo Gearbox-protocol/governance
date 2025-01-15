@@ -46,7 +46,7 @@ contract CrossChainMultisigTest is Test {
         view
         returns (bytes memory)
     {
-        bytes32 proposalHash = multisig.hashProposal(calls, prevHash);
+        bytes32 proposalHash = multisig.hashProposal("test", calls, prevHash);
         bytes32 digest = _getDigest(proposalHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
@@ -59,7 +59,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-1]: Initial state is correct
-    function test_SM_01_InitialState() public {
+    function test_CCG_01_InitialState() public {
         assertEq(multisig.confirmationThreshold(), THRESHOLD);
         assertEq(multisig.lastProposalHash(), bytes32(0));
         assertEq(multisig.owner(), owner);
@@ -87,14 +87,14 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-2]: Access modifiers work correctly
-    function test_SM_02_AccessModifiers() public {
+    function test_CCG_02_AccessModifiers() public {
         // Test onlyOnMainnet modifier
         vm.chainId(5); // Set to non-mainnet chain
         vm.startPrank(owner);
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
         vm.expectRevert(ICrossChainMultisig.CantBeExecutedOnCurrentChainException.selector);
-        multisig.submitProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
 
         vm.expectRevert(ICrossChainMultisig.CantBeExecutedOnCurrentChainException.selector);
         multisig.signProposal(bytes32(0), new bytes(65));
@@ -103,7 +103,9 @@ contract CrossChainMultisigTest is Test {
         // Test onlyOnNotMainnet modifier
         vm.chainId(1);
         vm.expectRevert(ICrossChainMultisig.CantBeExecutedOnCurrentChainException.selector);
-        multisig.executeProposal(SignedProposal({calls: calls, prevHash: bytes32(0), signatures: new bytes[](0)}));
+        multisig.executeProposal(
+            SignedProposal({name: "test", calls: calls, prevHash: bytes32(0), signatures: new bytes[](0)})
+        );
 
         // Test onlySelf modifier
         vm.expectRevert(ICrossChainMultisig.OnlySelfException.selector);
@@ -118,20 +120,20 @@ contract CrossChainMultisigTest is Test {
         // Test onlyOwner modifier
         vm.prank(makeAddr("notOwner"));
         vm.expectRevert("Ownable: caller is not the owner");
-        multisig.submitProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
     }
 
     /// @dev U:[SM-3]: Submit proposal works correctly
-    function test_SM_03_SubmitProposal() public {
+    function test_CCG_03_SubmitProposal() public {
         vm.startPrank(owner);
         vm.chainId(1); // Set to mainnet
 
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
-        multisig.submitProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
 
-        bytes32 proposalHash = multisig.hashProposal(calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
         SignedProposal memory proposal = multisig.signedProposals(proposalHash);
 
         assertEq(proposal.calls.length, 1);
@@ -139,7 +141,7 @@ contract CrossChainMultisigTest is Test {
         assertEq(proposal.signatures.length, 0);
     }
 
-    function test_SM_04_RevertOnInvalidPrevHash() public {
+    function test_CCG_04_RevertOnInvalidPrevHash() public {
         vm.chainId(1);
         vm.startPrank(owner);
 
@@ -147,21 +149,21 @@ contract CrossChainMultisigTest is Test {
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
         vm.expectRevert(ICrossChainMultisig.InvalidPrevHashException.selector);
-        multisig.submitProposal(calls, bytes32(uint256(1))); // Invalid prevHash
+        multisig.submitProposal("test", calls, bytes32(uint256(1))); // Invalid prevHash
     }
 
-    function test_SM_05_RevertOnEmptyCalls() public {
+    function test_CCG_05_RevertOnEmptyCalls() public {
         vm.chainId(1);
         vm.startPrank(owner);
 
         CrossChainCall[] memory calls = new CrossChainCall[](0);
 
         vm.expectRevert(ICrossChainMultisig.NoCallsInProposalException.selector);
-        multisig.submitProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
     }
 
     /// @dev U:[SM-6]: Sign proposal works correctly with single signature
-    function test_SM_06_SignProposal() public {
+    function test_CCG_06_SignProposal() public {
         vm.chainId(1); // Set to mainnet
 
         // Submit proposal
@@ -169,8 +171,8 @@ contract CrossChainMultisigTest is Test {
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
         vm.prank(owner);
-        multisig.submitProposal(calls, bytes32(0));
-        bytes32 proposalHash = multisig.hashProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
         // Generate EIP-712 signature
         bytes32 domainSeparator = multisig.domainSeparatorV4();
@@ -191,7 +193,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-7]: Sign proposal reverts when signing with invalid signature
-    function test_SM_07_SignProposalInvalidSignature() public {
+    function test_CCG_07_SignProposalInvalidSignature() public {
         vm.chainId(1);
 
         // Submit proposal
@@ -199,8 +201,8 @@ contract CrossChainMultisigTest is Test {
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
         vm.prank(owner);
-        multisig.submitProposal(calls, bytes32(0));
-        bytes32 proposalHash = multisig.hashProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
         // Try to sign with invalid signature
         bytes memory invalidSig = hex"1234";
@@ -209,7 +211,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-8]: Sign proposal reverts when signing non-existent proposal
-    function test_SM_08_SignProposalNonExistentProposal() public {
+    function test_CCG_08_SignProposalNonExistentProposal() public {
         vm.chainId(1);
 
         // Set last proposal hash to 1, to avoid ambiguity that default value of 0 is a valid proposal hash
@@ -223,7 +225,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-9]: Sign proposal reverts when same signer signs twice
-    function test_SM_09_SignProposalDuplicateSigner() public {
+    function test_CCG_09_SignProposalDuplicateSigner() public {
         vm.chainId(1);
 
         // Submit proposal
@@ -231,8 +233,8 @@ contract CrossChainMultisigTest is Test {
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
         vm.prank(owner);
-        multisig.submitProposal(calls, bytes32(0));
-        bytes32 proposalHash = multisig.hashProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
         // Sign first time
         bytes memory signature = _signProposalHash(signer0PrivateKey, proposalHash);
@@ -244,7 +246,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-10]: Sign proposal reverts when non-signer tries to sign
-    function test_SM_10_SignProposalNonSigner() public {
+    function test_CCG_10_SignProposalNonSigner() public {
         vm.chainId(1);
 
         // Submit proposal
@@ -252,8 +254,8 @@ contract CrossChainMultisigTest is Test {
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
         vm.prank(owner);
-        multisig.submitProposal(calls, bytes32(0));
-        bytes32 proposalHash = multisig.hashProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
         // Try to sign with non-signer private key
         uint256 nonSignerKey = 999;
@@ -264,7 +266,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-11]: Sign and execute proposal works correctly
-    function test_SM_11_SignAndExecuteProposal() public {
+    function test_CCG_11_SignAndExecuteProposal() public {
         vm.chainId(1); // Set to mainnet
 
         // Submit proposal
@@ -276,8 +278,8 @@ contract CrossChainMultisigTest is Test {
         });
 
         vm.prank(owner);
-        multisig.submitProposal(calls, bytes32(0));
-        bytes32 proposalHash = multisig.hashProposal(calls, bytes32(0));
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
         // Sign with first signer
         bytes memory sig0 = _signProposalHash(signer0PrivateKey, proposalHash);
@@ -299,7 +301,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-12]: _verifyProposal reverts if prevHash doesn't match lastProposalHash
-    function test_SM_12_VerifyProposalInvalidPrevHash() public {
+    function test_CCG_12_VerifyProposalInvalidPrevHash() public {
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
@@ -309,7 +311,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-13]: _verifyProposal reverts if calls array is empty
-    function test_SM_13_VerifyProposalEmptyCalls() public {
+    function test_CCG_13_VerifyProposalEmptyCalls() public {
         CrossChainCall[] memory calls = new CrossChainCall[](0);
 
         vm.expectRevert(ICrossChainMultisig.NoCallsInProposalException.selector);
@@ -317,7 +319,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-14]: _verifyProposal reverts if trying to call self on other chain
-    function test_SM_14_VerifyProposalSelfCallOtherChain() public {
+    function test_CCG_14_VerifyProposalSelfCallOtherChain() public {
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         // Try to call the multisig contract itself on another chain
         calls[0] = CrossChainCall({
@@ -331,7 +333,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-15]: _verifyProposal succeeds with valid calls
-    function test_SM_15_VerifyProposalValidCalls() public {
+    function test_CCG_15_VerifyProposalValidCalls() public {
         CrossChainCall[] memory calls = new CrossChainCall[](3);
 
         // Valid call on same chain
@@ -348,7 +350,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-16]: _verifySignatures returns 0 for empty signatures array
-    function test_SM_16_VerifySignaturesEmptyArray() public {
+    function test_CCG_16_VerifySignaturesEmptyArray() public {
         bytes[] memory signatures = new bytes[](0);
         bytes32 proposalHash = keccak256("test");
 
@@ -357,7 +359,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-17]: _verifySignatures correctly counts valid signatures
-    function test_SM_17_VerifySignaturesValidSignatures() public {
+    function test_CCG_17_VerifySignaturesValidSignatures() public {
         bytes32 proposalHash = keccak256("test");
 
         // Create array with 2 valid signatures
@@ -370,7 +372,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-18]: _verifySignatures ignores invalid signatures
-    function test_SM_18_VerifySignaturesInvalidSignatures() public {
+    function test_CCG_18_VerifySignaturesInvalidSignatures() public {
         bytes32 proposalHash = keccak256("test");
 
         // Create array with 1 valid and 1 invalid signature
@@ -385,7 +387,7 @@ contract CrossChainMultisigTest is Test {
     }
     /// @dev U:[SM-19]: _verifySignatures reverts with AlreadySignedException on duplicate signatures from same signer
 
-    function test_SM_19_VerifySignaturesDuplicateSigner() public {
+    function test_CCG_19_VerifySignaturesDuplicateSigner() public {
         bytes32 proposalHash = keccak256("test");
 
         // Create array with 2 signatures from same signer
@@ -398,7 +400,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-20]: _verifySignatures ignores signatures from non-signers
-    function test_SM_20_VerifySignaturesNonSigner() public {
+    function test_CCG_20_VerifySignaturesNonSigner() public {
         bytes32 proposalHash = keccak256("test");
 
         // Create random non-signer private key
@@ -413,7 +415,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-21]: _verifySignatures reverts on malformed signatures
-    function test_SM_21_VerifySignaturesMalformedSignature() public {
+    function test_CCG_21_VerifySignaturesMalformedSignature() public {
         bytes32 proposalHash = keccak256("test");
 
         bytes[] memory signatures = new bytes[](2);

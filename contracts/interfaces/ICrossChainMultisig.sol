@@ -76,7 +76,7 @@ interface ICrossChainMultisig is IVersion {
     /// @notice Submits a new proposal to the multisig
     /// @param calls Array of cross-chain calls to be executed
     /// @param prevHash Hash of the previous proposal (for ordering)
-    function submitProposal(CrossChainCall[] calldata calls, bytes32 prevHash) external;
+    function submitProposal(string calldata name, CrossChainCall[] calldata calls, bytes32 prevHash) external;
 
     /// @notice Allows a signer to sign a submitted proposal
     /// @param proposalHash Hash of the proposal to sign
@@ -100,10 +100,14 @@ interface ICrossChainMultisig is IVersion {
     function setConfirmationThreshold(uint8 newThreshold) external;
 
     /// @notice Hashes a proposal according to EIP-712
+    /// @param name Name of the proposal
     /// @param calls Array of cross-chain calls
     /// @param prevHash Hash of the previous proposal
     /// @return bytes32 Hash of the proposal
-    function hashProposal(CrossChainCall[] calldata calls, bytes32 prevHash) external view returns (bytes32);
+    function hashProposal(string calldata name, CrossChainCall[] calldata calls, bytes32 prevHash)
+        external
+        view
+        returns (bytes32);
 
     // GETTERS
 
