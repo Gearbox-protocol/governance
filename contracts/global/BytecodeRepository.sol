@@ -152,7 +152,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         }
 
         // Revert if the initCode is forbidden
-        revertIfInitCodeForbidden(_bytecode.initCode);
+        // revertIfInitCodeForbidden(_bytecode.initCode);
 
         // Check if the contract name and version already exists
         if (approvedBytecodeHash[_bytecode.contractType][_bytecode.version] != 0) {

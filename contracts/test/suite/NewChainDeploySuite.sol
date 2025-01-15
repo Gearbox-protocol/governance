@@ -78,6 +78,9 @@ contract NewChainDeploySuite is Test, GlobalSetup {
     address constant CHAINLINK_ETH_USD = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
     address constant CHAINLINK_USDC_USD = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
 
+    string constant name = "Test Market ETH";
+    string constant symbol = "dETH";
+
     function setUp() public {
         // simulate chainId 1
         if (block.chainid != 1) {
@@ -114,13 +117,16 @@ contract NewChainDeploySuite is Test, GlobalSetup {
         IWETH(WETH).deposit{value: 1e18}();
         IERC20(WETH).transfer(poolFactory, 1e18);
 
+        uint256 gasBefore = gasleft();
+
         vm.startPrank(riskCurator);
         address mc = MarketConfiguratorFactory(mcf).createMarketConfigurator(
             riskCurator, riskCurator, "Test Risk Curator", false
         );
 
-        string memory name = "Test Market ETH";
-        string memory symbol = "dETH";
+        uint256 gasAfter = gasleft();
+        uint256 used = gasBefore - gasAfter;
+        console.log("createMarketConfigurator gasUsed", used);
 
         address pool = MarketConfigurator(mc).previewPoolAddress(3_10, WETH, name, symbol);
 
@@ -128,6 +134,8 @@ contract NewChainDeploySuite is Test, GlobalSetup {
             abi.encode(uint16(100), uint16(200), uint16(100), uint16(100), uint16(200), uint16(300), false);
         bytes memory rateKeeperParams = abi.encode(pool, 7 days);
         bytes memory lossPolicyParams = abi.encode(pool, ap);
+
+        gasBefore = gasleft();
 
         address poolFromMarket = MarketConfigurator(mc).createMarket({
             minorVersion: 3_10,
@@ -139,6 +147,10 @@ contract NewChainDeploySuite is Test, GlobalSetup {
             lossPolicyParams: DeployParams("DEFAULT", lossPolicyParams),
             underlyingPriceFeed: CHAINLINK_ETH_USD
         });
+
+        gasAfter = gasleft();
+        used = gasBefore - gasAfter;
+        console.log("createMarket gasUsed", used);
 
         assertEq(pool, poolFromMarket);
 

@@ -135,3 +135,4 @@ cache
 broadcast
 .DS_Store
 .env
+addresses.json

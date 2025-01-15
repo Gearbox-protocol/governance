@@ -6,8 +6,12 @@ pragma solidity ^0.8.23;
 import {SignatureHelper} from "./SignatureHelper.sol";
 import {Bytecode} from "../../interfaces/Types.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
+import {console} from "forge-std/console.sol";
+import {LibString} from "@solady/utils/LibString.sol";
 
 contract BCRHelpers is SignatureHelper {
+    using LibString for bytes32;
+
     address internal bytecodeRepository;
     uint256 internal auditorKey;
     address internal auditor;
@@ -15,13 +19,15 @@ contract BCRHelpers is SignatureHelper {
     uint256 internal authorKey;
     address internal author;
 
-    function _setUpBCR() internal {
+    constructor() {
         auditorKey = _generatePrivateKey("AUDITOR");
-        auditor = vm.addr(auditorKey);
+        auditor = vm.rememberKey(auditorKey);
 
         authorKey = _generatePrivateKey("AUTHOR");
-        author = vm.addr(authorKey);
+        author = vm.rememberKey(authorKey);
     }
+
+    function _setUpBCR() internal {}
 
     function _uploadByteCode(bytes memory _initCode, bytes32 _contractName, uint256 _version)
         internal
@@ -53,8 +59,18 @@ contract BCRHelpers is SignatureHelper {
         bytecode.authorSignature =
             _sign(authorKey, keccak256(abi.encodePacked("\x19\x01", _bytecodeDomainSeparator(), bytecodeHash)));
 
-        vm.prank(author);
+        _startPrankOrBroadcast(author);
+        uint256 gasBefore = gasleft();
         IBytecodeRepository(bytecodeRepository).uploadBytecode(bytecode);
+        uint256 gasAfter = gasleft();
+        uint256 used = gasBefore - gasAfter;
+
+        if (used > 20e6) {
+            console.log("contractName", _contractName.fromSmallString());
+            console.log("gasUsed", gasBefore - gasAfter);
+            console.log("size", bytecode.initCode.length);
+        }
+        _stopPrankOrBroadcast();
     }
 
     function _uploadByteCodeAndSign(bytes memory _initCode, bytes32 _contractName, uint256 _version)

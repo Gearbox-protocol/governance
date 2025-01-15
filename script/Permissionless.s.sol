@@ -10,10 +10,12 @@ contract PermissionlessScript is Script, GlobalSetup {
     function setUp() public {}
 
     function run() public {
-        vm.broadcast();
+        vm.startBroadcast(vm.envUint("DEPLOYER_PRIVATE_KEY"));
+        _fundActors();
 
         _setUpGlobalContracts();
 
+        console2.log("DONE");
         vm.stopBroadcast();
 
         // Store address manager state as JSON
@@ -21,6 +23,13 @@ contract PermissionlessScript is Script, GlobalSetup {
         json = vm.serializeAddress("addresses", "bytecodeRepository", address(bytecodeRepository));
         json = vm.serializeAddress("addresses", "multisig", address(multisig));
 
-        vm.writeJson(json, "./deployments/addresses.json");
+        vm.writeJson(json, "./addresses.json");
+    }
+
+    function _fundActors() internal {
+        address[6] memory actors = [instanceOwner, author, dao, auditor, signer1, signer2];
+        for (uint256 i = 0; i < actors.length; ++i) {
+            payable(actors[i]).transfer(1 ether);
+        }
     }
 }

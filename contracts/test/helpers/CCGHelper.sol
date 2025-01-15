@@ -23,14 +23,16 @@ contract CCGHelper is SignatureHelper {
 
     bytes32 prevProposalHash;
 
-    function _setUpCCG() internal {
+    constructor() {
         signer1Key = _generatePrivateKey("SIGNER_1");
         signer2Key = _generatePrivateKey("SIGNER_2");
-        signer1 = vm.addr(signer1Key);
-        signer2 = vm.addr(signer2Key);
+        signer1 = vm.rememberKey(signer1Key);
+        signer2 = vm.rememberKey(signer2Key);
 
-        dao = vm.addr(_generatePrivateKey("DAO"));
+        dao = vm.rememberKey(_generatePrivateKey("DAO"));
+    }
 
+    function _setUpCCG() internal {
         // Deploy initial contracts
         address[] memory initialSigners = new address[](2);
         initialSigners[0] = signer1;
@@ -49,9 +51,9 @@ contract CCGHelper is SignatureHelper {
     }
 
     function _submitProposal(string memory name, CrossChainCall[] memory calls) internal {
-        vm.startPrank(dao);
+        _startPrankOrBroadcast(dao);
         multisig.submitProposal(name, calls, prevProposalHash);
-        vm.stopPrank();
+        _stopPrankOrBroadcast();
     }
 
     function _signCurrentProposal() internal {
