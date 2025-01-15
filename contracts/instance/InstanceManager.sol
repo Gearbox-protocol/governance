@@ -75,6 +75,7 @@ contract InstanceManager is Ownable, IInstanceManager {
         _setAddress(AP_INSTANCE_MANAGER_PROXY, instanceManagerProxy, false);
         _setAddress(AP_TREASURY_PROXY, treasuryProxy, false);
         _setAddress(AP_CROSS_CHAIN_GOVERNANCE_PROXY, crossChainGovernanceProxy, false);
+        _setAddress(AP_INSTANCE_MANAGER, address(this), false);
 
         _transferOwnership(_owner);
     }
@@ -83,7 +84,6 @@ contract InstanceManager is Ownable, IInstanceManager {
         if (!isActivated) {
             _transferOwnership(_instanceOwner);
 
-            _setAddress(AP_INSTANCE_MANAGER, address(this), true);
             _setAddress(AP_TREASURY, _treasury, false);
             _setAddress(AP_WETH_TOKEN, _weth, false);
             _setAddress(AP_GEAR_TOKEN, _gear, false);

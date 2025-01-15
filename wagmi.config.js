@@ -7,10 +7,11 @@ export default defineConfig({
   plugins: [
     foundry({
       include: [
-        "IAddressProvider.sol/*.json",
-        "IBytecodeRepository.sol/*.json",
-        "ICrossChainMultisig.sol/*.json",
-        "IPriceFeedStore.sol/*.json",
+        "AddressProvider.sol/AddressProvider.json",
+        "IBytecodeRepository.sol/**.json",
+        "ICrossChainMultisig.sol/**.json",
+        "IPriceFeedStore.sol/**.json",
+        "IInstanceManager.sol/**.json",
       ],
     }),
   ],

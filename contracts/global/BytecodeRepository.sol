@@ -78,6 +78,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     // bytecodeHash => array of AuditorSignature
     mapping(bytes32 => AuditorSignature[]) internal _auditorSignaturesByHash;
 
+    EnumerableSet.Bytes32Set internal _bytecodeHashes;
+
     // contractType => version => bytecodeHash
     mapping(bytes32 => mapping(uint256 => bytes32)) public approvedBytecodeHash;
 
@@ -172,6 +174,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             authorSignature: _bytecode.authorSignature
         });
 
+        _bytecodeHashes.add(bytecodeHash);
+
         emit UploadBytecode(
             bytecodeHash,
             _bytecode.contractType.fromSmallString(),
@@ -197,7 +201,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             revert BytecodeIsNotApprovedException(_contractType, _version);
         }
 
-        if (!isBytecodeAudited(bytecodeHash)) {
+        if (!isAuditBytecode(bytecodeHash)) {
             revert BytecodeIsNotAuditedException();
         }
 
@@ -232,7 +236,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         // add to deployedContracts
         deployedContracts[newContract] = bytecodeHash;
 
-        emit DeployContact(newContract, _contractType, _version);
+        emit DeployContact(newContract, bytecodeHash, _contractType.fromSmallString(), _version);
 
         // Auto-transfer ownership if IOwnable
         try Ownable(newContract).transferOwnership(msg.sender) {} catch {}
@@ -304,7 +308,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             AuditorSignature({reportUrl: reportUrl, auditor: signer, signature: signature})
         );
 
-        emit BytecodeSigned(bytecodeHash, signer, reportUrl, signature);
+        emit AuditBytecode(bytecodeHash, signer, reportUrl, signature);
 
         BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
 
@@ -332,7 +336,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     function allowSystemContract(bytes32 bytecodeHash) external onlyOwner {
         allowedSystemContracts[bytecodeHash] = true;
 
-        if (isBytecodeUploaded(bytecodeHash) && isBytecodeAudited(bytecodeHash)) {
+        if (isBytecodeUploaded(bytecodeHash) && isAuditBytecode(bytecodeHash)) {
             BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
             contractTypeOwner[_bytecode.contractType] = _bytecode.author;
             _approveContract(_bytecode.contractType, _bytecode.version, bytecodeHash, _bytecode.author);
@@ -538,7 +542,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         }
     }
 
-    function isBytecodeAudited(bytes32 bytecodeHash) public view returns (bool) {
+    function isAuditBytecode(bytes32 bytecodeHash) public view returns (bool) {
         uint256 len = _auditorSignaturesByHash[bytecodeHash].length;
 
         for (uint256 i = 0; i < len; ++i) {

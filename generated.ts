@@ -1,4 +1,198 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// AddressProvider
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const addressProviderAbi = [
+  {
+    type: 'constructor',
+    inputs: [{ name: '_owner', internalType: 'address', type: 'address' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'string', type: 'string' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'addresses',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'contractType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string' },
+      { name: '_version', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getAddressOrRevert',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
+      { name: '_version', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getAddressOrRevert',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getAllSavedContracts',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct ContractValue[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'key', internalType: 'string', type: 'string' },
+          { name: 'value', internalType: 'address', type: 'address' },
+          { name: 'version', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'majorVersion', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getLatestMinorVersion',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'minorVersion', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getLatestPatchVersion',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'key', internalType: 'string', type: 'string' }],
+    name: 'getLatestVersion',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'string', type: 'string' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'latestMinorVersions',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'string', type: 'string' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'latestPatchVersions',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'string', type: 'string' }],
+    name: 'latestVersions',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'value', internalType: 'address', type: 'address' },
+      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setAddress',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'addr', internalType: 'address', type: 'address' },
+      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setAddress',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'value', internalType: 'address', type: 'address' },
+      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setAddress',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'version',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string', indexed: true },
+      {
+        name: 'version',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'value',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'SetAddress',
+  },
+  { type: 'error', inputs: [], name: 'AddressNotFoundException' },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotOwnerException',
+  },
+  { type: 'error', inputs: [], name: 'VersionNotFoundException' },
+]
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IBytecodeRepository
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -256,17 +450,17 @@ export const iBytecodeRepositoryAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'auditor', internalType: 'address', type: 'address' }],
-    name: 'isAuditor',
+    inputs: [
+      { name: 'bytecodeHash', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'isAuditBytecode',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [
-      { name: 'bytecodeHash', internalType: 'bytes32', type: 'bytes32' },
-    ],
-    name: 'isBytecodeAudited',
+    inputs: [{ name: 'auditor', internalType: 'address', type: 'address' }],
+    name: 'isAuditor',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
@@ -456,13 +650,13 @@ export const iBytecodeRepositoryAbi = [
     anonymous: false,
     inputs: [
       {
-        name: 'metaHash',
+        name: 'bytecodeHash',
         internalType: 'bytes32',
         type: 'bytes32',
         indexed: true,
       },
       {
-        name: 'signer',
+        name: 'auditor',
         internalType: 'address',
         type: 'address',
         indexed: true,
@@ -480,7 +674,7 @@ export const iBytecodeRepositoryAbi = [
         indexed: false,
       },
     ],
-    name: 'BytecodeSigned',
+    name: 'AuditBytecode',
   },
   {
     type: 'event',
@@ -488,10 +682,16 @@ export const iBytecodeRepositoryAbi = [
     inputs: [
       { name: 'addr', internalType: 'address', type: 'address', indexed: true },
       {
-        name: 'contractType',
+        name: 'bytecodeHash',
         internalType: 'bytes32',
         type: 'bytes32',
         indexed: true,
+      },
+      {
+        name: 'contractType',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
       },
       {
         name: 'version',
@@ -603,7 +803,7 @@ export const iBytecodeRepositoryAbi = [
     anonymous: false,
     inputs: [
       {
-        name: 'metaHash',
+        name: 'bytecodeHash',
         internalType: 'bytes32',
         type: 'bytes32',
         indexed: true,
@@ -1092,6 +1292,144 @@ export const iCrossChainMultisigAbi = [
   { type: 'error', inputs: [], name: 'ProposalDoesNotExistException' },
   { type: 'error', inputs: [], name: 'SignerAlreadyExistsException' },
   { type: 'error', inputs: [], name: 'SignerDoesNotExistException' },
+]
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IInstanceManager
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iInstanceManagerAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: '_instanceOwner', internalType: 'address', type: 'address' },
+      { name: '_treasury', internalType: 'address', type: 'address' },
+      { name: '_weth', internalType: 'address', type: 'address' },
+      { name: '_gear', internalType: 'address', type: 'address' },
+    ],
+    name: 'activate',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'addressProvider',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bytecodeRepository',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'target', internalType: 'address', type: 'address' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'configureGlobal',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'target', internalType: 'address', type: 'address' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'configureLocal',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'target', internalType: 'address', type: 'address' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'configureTreasury',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'contractType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'crossChainGovernanceProxy',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_contractName', internalType: 'bytes32', type: 'bytes32' },
+      { name: '_version', internalType: 'uint256', type: 'uint256' },
+      { name: '_saveVersion', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'deploySystemContract',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'instanceManagerProxy',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'isActivated',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'addr', internalType: 'address', type: 'address' },
+      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setGlobalAddress',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'addr', internalType: 'address', type: 'address' },
+      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setLocalAddress',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'treasuryProxy',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'version',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
 ]
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
