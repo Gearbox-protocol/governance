@@ -22,6 +22,7 @@ contract PermissionlessScript is Script, GlobalSetup {
         string memory json = vm.serializeAddress("addresses", "instanceManager", address(instanceManager));
         json = vm.serializeAddress("addresses", "bytecodeRepository", address(bytecodeRepository));
         json = vm.serializeAddress("addresses", "multisig", address(multisig));
+        json = vm.serializeAddress("addresses", "addressProvider", address(instanceManager.addressProvider()));
 
         vm.writeJson(json, "./addresses.json");
     }
