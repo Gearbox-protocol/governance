@@ -14,8 +14,8 @@ import {IPoolV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPoolV3.so
 
 import {DefaultLossPolicy} from "../../helpers/DefaultLossPolicy.sol";
 
-import {IACL} from "../../interfaces/extensions/IACL.sol";
-import {IContractsRegister} from "../../interfaces/extensions/IContractsRegister.sol";
+import {IACL} from "../../interfaces/IACL.sol";
+import {IContractsRegister} from "../../interfaces/IContractsRegister.sol";
 import {Call, MarketFactories} from "../../interfaces/Types.sol";
 
 import {

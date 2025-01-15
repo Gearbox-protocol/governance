@@ -3,6 +3,8 @@
 // (c) Gearbox Foundation, 2024.
 pragma solidity ^0.8.23;
 
+import {IAddressProvider as IAddressProviderBase} from
+    "@gearbox-protocol/core-v3/contracts/interfaces/base/IAddressProvider.sol";
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {IImmutableOwnableTrait} from "./base/IImmutableOwnableTrait.sol";
 
@@ -13,14 +15,12 @@ struct ContractValue {
 }
 
 /// @title Address provider interface
-interface IAddressProvider is IVersion, IImmutableOwnableTrait {
+interface IAddressProvider is IAddressProviderBase, IVersion, IImmutableOwnableTrait {
     event SetAddress(string indexed key, uint256 indexed version, address indexed value);
 
     function addresses(string memory key, uint256 _version) external view returns (address);
 
     function getAddressOrRevert(string memory key, uint256 _version) external view returns (address);
-
-    function getAddressOrRevert(bytes32 key, uint256 _version) external view returns (address);
 
     function getAllSavedContracts() external view returns (ContractValue[] memory);
 
