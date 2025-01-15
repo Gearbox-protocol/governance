@@ -21,10 +21,10 @@ import {IPoolFactory} from "../interfaces/factories/IPoolFactory.sol";
 import {IPriceOracleFactory} from "../interfaces/factories/IPriceOracleFactory.sol";
 import {IRateKeeperFactory} from "../interfaces/factories/IRateKeeperFactory.sol";
 
-import {IACL} from "../interfaces/extensions/IACL.sol";
-import {IContractsRegister} from "../interfaces/extensions/IContractsRegister.sol";
+import {IACL} from "../interfaces/IACL.sol";
 import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
 import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
+import {IContractsRegister} from "../interfaces/IContractsRegister.sol";
 import {IGovernor} from "../interfaces/IGovernor.sol";
 import {IMarketConfigurator} from "../interfaces/IMarketConfigurator.sol";
 import {Call, DeployParams, DeployResult, MarketFactories} from "../interfaces/Types.sol";

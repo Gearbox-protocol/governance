@@ -6,7 +6,7 @@ pragma solidity ^0.8.23;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {IContractsRegister} from "../interfaces/extensions/IContractsRegister.sol";
+import {IContractsRegister} from "../interfaces/IContractsRegister.sol";
 import {IMarketConfigurator} from "../interfaces/IMarketConfigurator.sol";
 import {IMarketConfiguratorFactory} from "../interfaces/IMarketConfiguratorFactory.sol";
 

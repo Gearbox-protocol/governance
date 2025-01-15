@@ -6,7 +6,7 @@ pragma solidity ^0.8.23;
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {IACL} from "../interfaces/extensions/IACL.sol";
+import {IACL} from "../interfaces/IACL.sol";
 import {AP_ACL} from "../libraries/ContractLiterals.sol";
 
 /// @title Access control list

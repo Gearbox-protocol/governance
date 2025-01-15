@@ -9,9 +9,9 @@ import {ICreditFacadeV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IC
 import {ICreditManagerV3} from "@gearbox-protocol/core-v3/contracts/interfaces/ICreditManagerV3.sol";
 import {IPoolV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPoolV3.sol";
 
-import {IContractsRegister} from "../interfaces/extensions/IContractsRegister.sol";
 import {ICreditFactory} from "../interfaces/factories/ICreditFactory.sol";
 import {IFactory} from "../interfaces/factories/IFactory.sol";
+import {IContractsRegister} from "../interfaces/IContractsRegister.sol";
 import {IMarketConfigurator} from "../interfaces/IMarketConfigurator.sol";
 import {Call, DeployParams, DeployResult} from "../interfaces/Types.sol";
 

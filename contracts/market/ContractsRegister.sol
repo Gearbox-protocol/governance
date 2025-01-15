@@ -9,7 +9,7 @@ import {ICreditManagerV3} from "@gearbox-protocol/core-v3/contracts/interfaces/I
 import {ACLTrait} from "@gearbox-protocol/core-v3/contracts/traits/ACLTrait.sol";
 import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/SanityCheckTrait.sol";
 
-import {IContractsRegister} from "../interfaces/extensions/IContractsRegister.sol";
+import {IContractsRegister} from "../interfaces/IContractsRegister.sol";
 import {AP_CONTRACTS_REGISTER} from "../libraries/ContractLiterals.sol";
 
 /// @title Contracts register
