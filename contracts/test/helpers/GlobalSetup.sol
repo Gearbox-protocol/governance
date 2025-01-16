@@ -154,16 +154,16 @@ contract GlobalSetup is Test, InstanceManagerHelper {
 
         uint256 len = contractsToUpload.length;
 
-        calls = new CrossChainCall[](1);
+        calls = new CrossChainCall[](len);
 
         for (uint256 i = 0; i < len; ++i) {
             bytes32 bytecodeHash = _uploadByteCodeAndSign(
                 contractsToUpload[i].initCode, contractsToUpload[i].contractType, contractsToUpload[i].version
             );
-            console.log("bytecodeHash");
-            calls[0] = _generateAllowSystemContractCall(bytecodeHash);
-            _submitProposalAndSign("Upload contracts", calls);
+            calls[i] = _generateAllowSystemContractCall(bytecodeHash);
         }
+
+        _submitProposalAndSign("Allow system contracts", calls);
 
         DeploySystemContractCall[10] memory deployCalls = [
             DeploySystemContractCall({contractType: AP_BOT_LIST, version: 3_10, saveVersion: false}),
@@ -573,13 +573,13 @@ contract GlobalSetup is Test, InstanceManagerHelper {
 
     function _setPriceFeeds() internal {
         // TODO: set price feeds
-        contractsToUpload.push(
-            UploadableContract({
-                initCode: type(BPTWeightedPriceFeed).creationCode,
-                contractType: "PRICE_FEED::BALANCER_WEIGHTED",
-                version: 3_10
-            })
-        );
+        // contractsToUpload.push(
+        //     UploadableContract({
+        //         initCode: type(BPTWeightedPriceFeed).creationCode,
+        //         contractType: "PRICE_FEED::BALANCER_WEIGHTED",
+        //         version: 3_10
+        //     })
+        // );
 
         contractsToUpload.push(
             UploadableContract({

@@ -7,21 +7,18 @@ import {CrossChainCall, SignedProposal} from "../../interfaces/ICrossChainMultis
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ICrossChainMultisig} from "../../interfaces/ICrossChainMultisig.sol";
 import {console} from "forge-std/console.sol";
+import {SignatureHelper} from "../helpers/SignatureHelper.sol";
 
-contract CrossChainMultisigTest is Test {
+contract CrossChainMultisigTest is Test, SignatureHelper {
     CrossChainMultisigHarness multisig;
 
-    uint256 signer0PrivateKey = vm.randomUint();
-    uint256 signer1PrivateKey = vm.randomUint();
+    uint256 signer0PrivateKey = _generatePrivateKey("SIGNER_1");
+    uint256 signer1PrivateKey = _generatePrivateKey("SIGNER_2");
     address[] signers;
     uint8 constant THRESHOLD = 2;
     address owner;
 
-    bytes32 constant DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 constant CROSS_CHAIN_CALL_TYPEHASH =
-        keccak256("CrossChainCall(uint256 chainId,address target,bytes callData)");
-    bytes32 constant PROPOSAL_TYPEHASH = keccak256("Proposal(bytes32 proposalHash,bytes32 prevHash)");
+    bytes32 PROPOSAL_TYPEHASH = keccak256("Proposal(string name,bytes32 proposalHash,bytes32 prevHash)");
 
     function setUp() public {
         // Setup initial signers
@@ -38,7 +35,7 @@ contract CrossChainMultisigTest is Test {
 
     function _getDigest(bytes32 structHash) internal view returns (bytes32) {
         bytes32 domainSeparator = multisig.domainSeparatorV4();
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        return ECDSA.toTypedDataHash(domainSeparator, structHash);
     }
 
     function _signProposal(uint256 privateKey, CrossChainCall[] memory calls, bytes32 prevHash)
@@ -47,14 +44,13 @@ contract CrossChainMultisigTest is Test {
         returns (bytes memory)
     {
         bytes32 proposalHash = multisig.hashProposal("test", calls, prevHash);
-        bytes32 digest = _getDigest(proposalHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        bytes32 structHash = _getDigest(proposalHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, structHash);
         return abi.encodePacked(r, s, v);
     }
 
-    function _signProposalHash(uint256 privateKey, bytes32 proposalHash) internal view returns (bytes memory) {
-        bytes32 digest = _getDigest(proposalHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+    function _signProposalHash(uint256 privateKey, bytes32 structHash) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, _getDigest(structHash));
         return abi.encodePacked(r, s, v);
     }
 
@@ -71,16 +67,16 @@ contract CrossChainMultisigTest is Test {
 
         // Check events emitted during deployment
         vm.expectEmit(true, false, false, false);
-        emit ICrossChainMultisig.SignerAdded(signers[0]);
+        emit ICrossChainMultisig.AddSigner(signers[0]);
 
         vm.expectEmit(true, false, false, false);
-        emit ICrossChainMultisig.SignerAdded(signers[1]);
+        emit ICrossChainMultisig.AddSigner(signers[1]);
 
         vm.expectEmit(true, false, false, false);
-        emit ICrossChainMultisig.SignerAdded(signers[2]);
+        emit ICrossChainMultisig.AddSigner(signers[2]);
 
         vm.expectEmit(false, false, false, true);
-        emit ICrossChainMultisig.ConfirmationThresholdSet(THRESHOLD);
+        emit ICrossChainMultisig.SetConfirmationThreshold(THRESHOLD);
 
         // Re-deploy to verify events
         new CrossChainMultisigHarness(signers, THRESHOLD, owner);
@@ -134,7 +130,7 @@ contract CrossChainMultisigTest is Test {
         multisig.submitProposal("test", calls, bytes32(0));
 
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
-        SignedProposal memory proposal = multisig.signedProposals(proposalHash);
+        SignedProposal memory proposal = multisig.getSignedProposal(proposalHash);
 
         assertEq(proposal.calls.length, 1);
         assertEq(proposal.prevHash, bytes32(0));
@@ -174,17 +170,20 @@ contract CrossChainMultisigTest is Test {
         multisig.submitProposal("test", calls, bytes32(0));
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
-        // Generate EIP-712 signature
-        bytes32 domainSeparator = multisig.domainSeparatorV4();
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, proposalHash));
+        console.log(signers[0]);
+        console.logBytes32(proposalHash);
 
-        bytes memory signature = _signProposalHash(signer0PrivateKey, proposalHash);
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
+
+        // Generate EIP-712 signature
+        bytes memory signature = _signProposalHash(signer0PrivateKey, structHash);
 
         // Sign with first signer
         multisig.signProposal(proposalHash, signature);
 
         // Verify proposal state after signing
-        SignedProposal memory proposal = multisig.signedProposals(proposalHash);
+        SignedProposal memory proposal = multisig.getSignedProposal(proposalHash);
         assertEq(proposal.signatures.length, 1);
         assertEq(proposal.signatures[0], signature);
 
@@ -236,8 +235,11 @@ contract CrossChainMultisigTest is Test {
         multisig.submitProposal("test", calls, bytes32(0));
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
+
         // Sign first time
-        bytes memory signature = _signProposalHash(signer0PrivateKey, proposalHash);
+        bytes memory signature = _signProposalHash(signer0PrivateKey, structHash);
         multisig.signProposal(proposalHash, signature);
 
         // Try to sign again with same signer
@@ -281,23 +283,26 @@ contract CrossChainMultisigTest is Test {
         multisig.submitProposal("test", calls, bytes32(0));
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
+
         // Sign with first signer
-        bytes memory sig0 = _signProposalHash(signer0PrivateKey, proposalHash);
+        bytes memory sig0 = _signProposalHash(signer0PrivateKey, structHash);
         multisig.signProposal(proposalHash, sig0);
 
         // Sign with second signer which should trigger execution
         // Check events emitted during execution
         vm.expectEmit(true, true, true, true);
-        emit ICrossChainMultisig.ProposalSigned(proposalHash, vm.addr(signer1PrivateKey));
+        emit ICrossChainMultisig.SignProposal(proposalHash, vm.addr(signer1PrivateKey));
 
         vm.expectEmit(true, true, true, true);
-        emit ICrossChainMultisig.ProposalExecuted(proposalHash);
-        bytes memory sig1 = _signProposalHash(signer1PrivateKey, proposalHash);
+        emit ICrossChainMultisig.ExecuteProposal(proposalHash);
+        bytes memory sig1 = _signProposalHash(signer1PrivateKey, structHash);
         multisig.signProposal(proposalHash, sig1);
 
         // Verify proposal was executed
         assertEq(multisig.lastProposalHash(), proposalHash, "lastProposalHash");
-        assertEq(multisig.executedProposalHashes(0), proposalHash, "executedProposalHashes");
+        assertEq(multisig.getExecutedProposalHashes()[0], proposalHash, "executedProposalHashes");
     }
 
     /// @dev U:[SM-12]: _verifyProposal reverts if prevHash doesn't match lastProposalHash
@@ -333,7 +338,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-15]: _verifyProposal succeeds with valid calls
-    function test_CCG_15_VerifyProposalValidCalls() public {
+    function test_CCG_15_VerifyProposalValidCalls() public view {
         CrossChainCall[] memory calls = new CrossChainCall[](3);
 
         // Valid call on same chain
@@ -350,7 +355,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-16]: _verifySignatures returns 0 for empty signatures array
-    function test_CCG_16_VerifySignaturesEmptyArray() public {
+    function test_CCG_16_VerifySignaturesEmptyArray() public view {
         bytes[] memory signatures = new bytes[](0);
         bytes32 proposalHash = keccak256("test");
 
@@ -360,57 +365,95 @@ contract CrossChainMultisigTest is Test {
 
     /// @dev U:[SM-17]: _verifySignatures correctly counts valid signatures
     function test_CCG_17_VerifySignaturesValidSignatures() public {
-        bytes32 proposalHash = keccak256("test");
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create array with 2 valid signatures
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash);
-        signatures[1] = _signProposalHash(signer1PrivateKey, proposalHash);
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash);
+        signatures[1] = _signProposalHash(signer1PrivateKey, structHash);
 
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 2);
     }
 
     /// @dev U:[SM-18]: _verifySignatures ignores invalid signatures
     function test_CCG_18_VerifySignaturesInvalidSignatures() public {
-        bytes32 proposalHash = keccak256("test");
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create array with 1 valid and 1 invalid signature
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash);
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash);
 
         // Create invalid signature by signing different hash
         signatures[1] = _signProposalHash(signer1PrivateKey, keccak256("wrong hash"));
 
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 1);
     }
     /// @dev U:[SM-19]: _verifySignatures reverts with AlreadySignedException on duplicate signatures from same signer
 
     function test_CCG_19_VerifySignaturesDuplicateSigner() public {
-        bytes32 proposalHash = keccak256("test");
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create array with 2 signatures from same signer
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash);
-        signatures[1] = _signProposalHash(signer0PrivateKey, proposalHash);
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash);
+        signatures[1] = _signProposalHash(signer0PrivateKey, structHash);
+
+        bytes32 digest = _getDigest(structHash);
 
         vm.expectRevert(ICrossChainMultisig.AlreadySignedException.selector);
-        multisig.exposed_verifySignatures(signatures, proposalHash);
+        multisig.exposed_verifySignatures(signatures, digest);
     }
 
     /// @dev U:[SM-20]: _verifySignatures ignores signatures from non-signers
     function test_CCG_20_VerifySignaturesNonSigner() public {
-        bytes32 proposalHash = keccak256("test");
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create random non-signer private key
         uint256 nonSignerKey = uint256(keccak256("non-signer"));
 
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash); // Valid signer
-        signatures[1] = _signProposalHash(nonSignerKey, proposalHash); // Non-signer
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash); // Valid signer
+        signatures[1] = _signProposalHash(nonSignerKey, structHash); // Non-signer
 
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 1);
     }
 
@@ -423,6 +466,6 @@ contract CrossChainMultisigTest is Test {
         signatures[1] = hex"1234"; // Malformed signature
 
         vm.expectRevert("ECDSA: invalid signature length");
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        multisig.exposed_verifySignatures(signatures, proposalHash);
     }
 }

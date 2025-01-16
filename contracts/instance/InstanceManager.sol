@@ -75,6 +75,7 @@ contract InstanceManager is Ownable, IInstanceManager {
         _setAddress(AP_INSTANCE_MANAGER_PROXY, instanceManagerProxy, false);
         _setAddress(AP_TREASURY_PROXY, treasuryProxy, false);
         _setAddress(AP_CROSS_CHAIN_GOVERNANCE_PROXY, crossChainGovernanceProxy, false);
+        _setAddress(AP_INSTANCE_MANAGER, address(this), false);
 
         _transferOwnership(_owner);
     }
@@ -83,7 +84,6 @@ contract InstanceManager is Ownable, IInstanceManager {
         if (!isActivated) {
             _transferOwnership(_instanceOwner);
 
-            _setAddress(AP_INSTANCE_MANAGER, address(this), true);
             _setAddress(AP_TREASURY, _treasury, false);
             _setAddress(AP_WETH_TOKEN, _weth, false);
             _setAddress(AP_GEAR_TOKEN, _gear, false);
@@ -91,13 +91,13 @@ contract InstanceManager is Ownable, IInstanceManager {
         }
     }
 
-    function deploySystemContract(bytes32 _contractName, uint256 _version, bool _saveVersion)
+    function deploySystemContract(bytes32 _contractType, uint256 _version, bool _saveVersion)
         external
         onlyCrossChainGovernance
     {
         address newSystemContract;
         if (
-            _contractName == AP_GEAR_STAKING && _version == 3_10
+            _contractType == AP_GEAR_STAKING && _version == 3_10
                 && (block.chainid == 1 || block.chainid == 10 || block.chainid == 42161)
         ) {
             if (block.chainid == 1) {
@@ -108,18 +108,17 @@ contract InstanceManager is Ownable, IInstanceManager {
                 newSystemContract = 0xf3599BEfe8E79169Afd5f0b7eb0A1aA322F193D9;
             }
         } else {
-            newSystemContract = _deploySystemContract(_contractName, _version);
+            newSystemContract = _deploySystemContract(_contractType, _version);
         }
 
-        _setAddress(_contractName, newSystemContract, _saveVersion);
+        _setAddress(_contractType, newSystemContract, _saveVersion);
     }
 
-    function _deploySystemContract(bytes32 _contractName, uint256 _version) internal returns (address) {
-        // TODO: Check that code is not forbidden and audited - otherwise skip
+    function _deploySystemContract(bytes32 _contractType, uint256 _version) internal returns (address) {
         try ProxyCall(crossChainGovernanceProxy).proxyCall(
             address(bytecodeRepository),
-            abi.encodeCall(BytecodeRepository.deploy, (_contractName, _version, abi.encode(addressProvider), 0))
-        ) returns (bool success, bytes memory result) {
+            abi.encodeCall(BytecodeRepository.deploy, (_contractType, _version, abi.encode(addressProvider), 0))
+        ) returns (bytes memory result) {
             return abi.decode(result, (address));
         } catch {
             return address(0);

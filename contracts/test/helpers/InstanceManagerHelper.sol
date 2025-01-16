@@ -39,13 +39,17 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
         bytecodeRepository = instanceManager.bytecodeRepository();
     }
 
-    function _generateAddAuditorCall(address _auditor, string memory _name) internal returns (CrossChainCall memory) {
+    function _generateAddAuditorCall(address _auditor, string memory _name)
+        internal
+        view
+        returns (CrossChainCall memory)
+    {
         return _buildCrossChainCallDAO(
             bytecodeRepository, abi.encodeCall(IBytecodeRepository.addAuditor, (_auditor, _name))
         );
     }
 
-    function _generateAllowSystemContractCall(bytes32 _bytecodeHash) internal returns (CrossChainCall memory) {
+    function _generateAllowSystemContractCall(bytes32 _bytecodeHash) internal view returns (CrossChainCall memory) {
         return _buildCrossChainCallDAO(
             bytecodeRepository, abi.encodeCall(IBytecodeRepository.allowSystemContract, (_bytecodeHash))
         );
@@ -53,6 +57,7 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
 
     function _generateDeploySystemContractCall(bytes32 _contractName, uint256 _version, bool _saveVersion)
         internal
+        view
         returns (CrossChainCall memory)
     {
         return CrossChainCall({
@@ -68,7 +73,7 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
         address _treasury,
         address _weth,
         address _gear
-    ) internal returns (CrossChainCall memory) {
+    ) internal view returns (CrossChainCall memory) {
         return CrossChainCall({
             chainId: _chainId,
             target: address(instanceManager),

@@ -61,7 +61,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     error NotAllowedSystemContractException(bytes32 bytecodeHash);
 
     /// @notice Thrown when trying to deploy contract with incorrect contract type
-    error ContractNameVersionAlreadyExistsException();
+    error ContractTypeVersionAlreadyExistsException();
 
     error OnlyAuthorCanSyncException();
 
@@ -75,7 +75,9 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     //
 
     // Emitted when new smart contract was deployed
-    event DeployContact(address indexed addr, bytes32 indexed contractType, uint256 indexed version);
+    event DeployContract(
+        address indexed addr, bytes32 indexed bytecodeHash, string contractType, uint256 indexed version
+    );
 
     // Event emitted when a new auditor is added to the repository
     event AddAuditor(address indexed auditor, string name);
@@ -85,11 +87,15 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
 
     // Event emitted when new bytecode is uploaded to the repository
     event UploadBytecode(
-        bytes32 indexed metaHash, string contractType, uint256 indexed version, address indexed author, string source
+        bytes32 indexed bytecodeHash,
+        string contractType,
+        uint256 indexed version,
+        address indexed author,
+        string source
     );
 
     // Event emitted when bytecode is signed by an auditor
-    event BytecodeSigned(bytes32 indexed metaHash, address indexed signer, string reportUrl, bytes signature);
+    event AuditBytecode(bytes32 indexed bytecodeHash, address indexed auditor, string reportUrl, bytes signature);
 
     // Event emitted when a public domain is added
     event AddPublicDomain(bytes32 indexed domain);
@@ -177,7 +183,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     function revokeApproval(bytes32 contractType, uint256 version, bytes32 bytecodeHash) external;
 
     /// @notice Checks if a contract name belongs to public domain
-    function isContractNameInPublicDomain(bytes32 contractType) external view returns (bool);
+    function isInPublicDomain(bytes32 contractType) external view returns (bool);
 
     /// @notice Checks if a domain is public
     function isPublicDomain(bytes32 domain) external view returns (bool);
@@ -222,7 +228,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     function revertIfInitCodeForbidden(bytes memory initCode) external view;
 
     /// @notice Checks if bytecode is audited
-    function isBytecodeAudited(bytes32 bytecodeHash) external view returns (bool);
+    function isAuditBytecode(bytes32 bytecodeHash) external view returns (bool);
 
     function BYTECODE_TYPEHASH() external view returns (bytes32);
 }

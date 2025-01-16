@@ -12,28 +12,28 @@ interface ICrossChainMultisig is IVersion {
     //
     /// @notice Emitted when a new signer is added to the multisig
     /// @param signer Address of the newly added signer
-    event SignerAdded(address indexed signer);
+    event AddSigner(address indexed signer);
 
     /// @notice Emitted when a signer is removed from the multisig
     /// @param signer Address of the removed signer
-    event SignerRemoved(address indexed signer);
+    event RemoveSigner(address indexed signer);
 
     /// @notice Emitted when the confirmation threshold is updated
     /// @param newconfirmationThreshold New number of required signatures
-    event ConfirmationThresholdSet(uint8 newconfirmationThreshold);
+    event SetConfirmationThreshold(uint8 newconfirmationThreshold);
 
     /// @notice Emitted when a new proposal is submitted
     /// @param proposalHash Hash of the submitted proposal
-    event ProposalSubmitted(bytes32 indexed proposalHash);
+    event SubmitProposal(bytes32 indexed proposalHash);
 
     /// @notice Emitted when a signer signs a proposal
     /// @param proposalHash Hash of the signed proposal
     /// @param signer Address of the signer
-    event ProposalSigned(bytes32 indexed proposalHash, address indexed signer);
+    event SignProposal(bytes32 indexed proposalHash, address indexed signer);
 
     /// @notice Emitted when a proposal is successfully executed
     /// @param proposalHash Hash of the executed proposal
-    event ProposalExecuted(bytes32 indexed proposalHash);
+    event ExecuteProposal(bytes32 indexed proposalHash);
 
     // Errors
 
@@ -109,7 +109,9 @@ interface ICrossChainMultisig is IVersion {
         view
         returns (bytes32);
 
+    //
     // GETTERS
+    //
 
     /// @notice Returns the current confirmation threshold
     function confirmationThreshold() external view returns (uint8);
@@ -117,25 +119,23 @@ interface ICrossChainMultisig is IVersion {
     /// @notice Returns the hash of the last executed proposal
     function lastProposalHash() external view returns (bytes32);
 
-    /// @notice Returns the array of executed proposal hashes
-    function executedProposalHashes(uint256 index) external view returns (bytes32);
-
     /// @notice Returns the signed proposal details for a given hash
-    function signedProposals(bytes32 proposalHash) external view returns (SignedProposal memory);
+    function getSignedProposal(bytes32 proposalHash) external view returns (SignedProposal memory);
 
     /// @notice Returns all currently pending proposals
     function getCurrentProposals() external view returns (SignedProposal[] memory);
 
-    /// @notice Returns the list of current signers
-    function getSigners() external view returns (address[] memory);
-
     /// @notice Returns all executed proposals
     function getExecutedProposals() external view returns (SignedProposal[] memory);
 
-    /// @notice Returns a paginated list of executed proposals
-    /// @param offset Starting index
-    /// @param limit Maximum number of proposals to return
-    function getExecutedProposals(uint256 offset, uint256 limit) external view returns (SignedProposal[] memory);
+    /// @notice Returns the array of executed proposal hashes
+    function getExecutedProposalHashes() external view returns (bytes32[] memory);
+
+    /// @notice Returns a single executed proposal
+    function getProposal(bytes32 proposalHash) external view returns (SignedProposal memory);
+
+    /// @notice Returns the list of current signers
+    function getSigners() external view returns (address[] memory);
 
     /// @notice Checks if an address is a signer
     /// @param account Address to check

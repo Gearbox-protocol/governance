@@ -8,9 +8,16 @@ import {CrossChainMultisig} from "../../../contracts/global/CrossChainMultisig.s
 import {CrossChainCall, SignedProposal} from "../../../contracts/interfaces/ICrossChainMultisig.sol";
 
 import {console} from "forge-std/console.sol";
+import {LibString} from "@solady/utils/LibString.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract CCGHelper is SignatureHelper {
+    using LibString for bytes;
+    using LibString for uint256;
     // Core contracts
+
+    bytes32 constant PROPOSAL_TYPEHASH = keccak256("Proposal(string name,bytes32 proposalHash,bytes32 prevHash)");
+
     CrossChainMultisig internal multisig;
 
     uint256 internal signer1Key;
@@ -59,19 +66,38 @@ contract CCGHelper is SignatureHelper {
     function _signCurrentProposal() internal {
         bytes32[] memory currentProposalHashes = multisig.getCurrentProposalHashes();
 
-        SignedProposal memory currentProposal = multisig.signedProposals(currentProposalHashes[0]);
+        SignedProposal memory currentProposal = multisig.getSignedProposal(currentProposalHashes[0]);
 
         bytes32 proposalHash =
             multisig.hashProposal(currentProposal.name, currentProposal.calls, currentProposal.prevHash);
 
-        bytes memory signature1 =
-            _sign(signer1Key, keccak256(abi.encodePacked("\x19\x01", _ccmDomainSeparator(), proposalHash)));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PROPOSAL_TYPEHASH, keccak256(bytes(currentProposal.name)), proposalHash, currentProposal.prevHash
+            )
+        );
+
+        console.log("tt");
+        console.logBytes32(structHash);
+
+        bytes memory signature1 = _sign(signer1Key, ECDSA.toTypedDataHash(_ccmDomainSeparator(), structHash));
 
         multisig.signProposal(proposalHash, signature1);
 
-        bytes memory signature2 =
-            _sign(signer2Key, keccak256(abi.encodePacked("\x19\x01", _ccmDomainSeparator(), proposalHash)));
+        console.log("== SIGNER 1 ==");
+        console.log("name", currentProposal.name);
+        console.log("proposalHash");
+        console.logBytes32(proposalHash);
+        console.log("prevHash");
+        console.logBytes32(currentProposal.prevHash);
+        console.log(signature1.toHexString());
+
+        bytes memory signature2 = _sign(signer2Key, ECDSA.toTypedDataHash(_ccmDomainSeparator(), structHash));
         multisig.signProposal(proposalHash, signature2);
+
+        console.log("== SIGNER 2==");
+        console.log("name", currentProposal.name);
+        console.log(signature2.toHexString());
 
         prevProposalHash = proposalHash;
     }

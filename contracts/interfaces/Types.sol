@@ -58,7 +58,16 @@ struct PriceFeedInfo {
 struct Bytecode {
     bytes32 contractType;
     uint256 version;
-    bytes initCode; // store it's hash as well
+    bytes initCode;
+    address author;
+    string source;
+    bytes authorSignature;
+}
+
+struct BytecodePointer {
+    bytes32 contractType;
+    uint256 version;
+    address initCodePointer;
     address author;
     string source;
     bytes authorSignature;

@@ -11,7 +11,8 @@
     "license": "MIT",
     "devDependencies": {
         "@chainlink/contracts": "0.4.0",
-        "@gearbox-protocol/sdk-gov": "^2.1.0"
+        "@gearbox-protocol/sdk-gov": "^2.1.0",
+        "@wagmi/cli": "^2.1.22"
     },
     "dependencies": {
         "@redstone-finance/evm-connector": "^0.2.5"

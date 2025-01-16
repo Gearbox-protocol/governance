@@ -162,7 +162,7 @@ contract BytecodeRepositoryTest is Test {
         repository.signBytecodeHash(bytecodeHash, reportUrl, signature);
 
         // Verify signature was stored
-        assertTrue(repository.isBytecodeAudited(bytecodeHash));
+        assertTrue(repository.isAuditBytecode(bytecodeHash));
 
         AuditorSignature[] memory sigs = repository.auditorSignaturesByHash(bytecodeHash);
         assertEq(sigs.length, 1);

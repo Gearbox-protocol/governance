@@ -13,8 +13,8 @@ interface IInstanceManager is IVersion {
     function crossChainGovernanceProxy() external view returns (address);
     function isActivated() external view returns (bool);
 
-    function activate(address _instanceOwner, address _treasury, address _weth, address _gear) external;
-    function deploySystemContract(bytes32 _contractName, uint256 _version, bool _saveVersion) external;
+    function activate(address instanceOwner, address treasury, address weth, address gear) external;
+    function deploySystemContract(bytes32 contractType, uint256 version, bool saveVersion) external;
     function setGlobalAddress(string memory key, address addr, bool saveVersion) external;
     function setLocalAddress(string memory key, address addr, bool saveVersion) external;
     function configureGlobal(address target, bytes calldata data) external;

@@ -40,7 +40,7 @@ contract InstanceManagerTest is Test {
     }
 
     /// @notice Test constructor sets up initial state correctly
-    function test_IM_01_constructor_sets_initial_state() public {
+    function test_IM_01_constructor_sets_initial_state() public view {
         // Verify proxies were created
         assertTrue(manager.instanceManagerProxy() != address(0));
         assertTrue(manager.treasuryProxy() != address(0));
@@ -71,7 +71,7 @@ contract InstanceManagerTest is Test {
         manager.activate(owner, treasury, weth, gear);
 
         assertTrue(manager.isActivated());
-        assertEq(addressProvider.getAddressOrRevert(AP_INSTANCE_MANAGER, manager.version()), address(manager));
+        assertEq(addressProvider.getAddressOrRevert(AP_INSTANCE_MANAGER, NO_VERSION_CONTROL), address(manager));
         assertEq(addressProvider.getAddressOrRevert(AP_TREASURY, NO_VERSION_CONTROL), treasury);
         assertEq(addressProvider.getAddressOrRevert(AP_WETH_TOKEN, NO_VERSION_CONTROL), weth);
         assertEq(addressProvider.getAddressOrRevert(AP_GEAR_TOKEN, NO_VERSION_CONTROL), gear);

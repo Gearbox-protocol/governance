@@ -29,12 +29,12 @@ contract BCRHelpers is SignatureHelper {
 
     function _setUpBCR() internal {}
 
-    function _uploadByteCode(bytes memory _initCode, bytes32 _contractName, uint256 _version)
+    function _uploadByteCode(bytes memory _initCode, bytes32 _contractType, uint256 _version)
         internal
         returns (bytes32 bytecodeHash)
     {
         Bytecode memory bytecode = Bytecode({
-            contractType: _contractName,
+            contractType: _contractType,
             version: _version,
             initCode: _initCode,
             author: author,
@@ -60,16 +60,8 @@ contract BCRHelpers is SignatureHelper {
             _sign(authorKey, keccak256(abi.encodePacked("\x19\x01", _bytecodeDomainSeparator(), bytecodeHash)));
 
         _startPrankOrBroadcast(author);
-        uint256 gasBefore = gasleft();
         IBytecodeRepository(bytecodeRepository).uploadBytecode(bytecode);
-        uint256 gasAfter = gasleft();
-        uint256 used = gasBefore - gasAfter;
 
-        if (used > 20e6) {
-            console.log("contractName", _contractName.fromSmallString());
-            console.log("gasUsed", gasBefore - gasAfter);
-            console.log("size", bytecode.initCode.length);
-        }
         _stopPrankOrBroadcast();
     }
 

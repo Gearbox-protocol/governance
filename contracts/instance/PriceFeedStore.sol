@@ -98,7 +98,7 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
             priceFeedType = _cType;
             priceFeedVersion = IPriceFeed(priceFeed).version();
         } catch {
-            priceFeedType = "PF_EXTERNAL_ORACLE";
+            priceFeedType = "PRICE_FEED::EXTERNAL";
             priceFeedVersion = 0;
         }
 
