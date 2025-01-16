@@ -219,7 +219,6 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     //
     // MULTISIG CONFIGURATION FUNCTIONS
     //
-    // They user onlySelf pattern to be executed
 
     // @notice: Add a new signer to the multisig
     // @param: newSigner - Address of the new signer

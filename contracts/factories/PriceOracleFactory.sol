@@ -9,14 +9,15 @@ import {IPriceOracleV3} from "@gearbox-protocol/core-v3/contracts/interfaces/IPr
 import {IFactory} from "../interfaces/factories/IFactory.sol";
 import {IMarketFactory} from "../interfaces/factories/IMarketFactory.sol";
 import {IPriceOracleFactory} from "../interfaces/factories/IPriceOracleFactory.sol";
+import {IMarketConfigurator} from "../interfaces/IMarketConfigurator.sol";
 import {IPriceFeedStore} from "../interfaces/IPriceFeedStore.sol";
 import {Call, DeployResult} from "../interfaces/Types.sol";
 
 import {CallBuilder} from "../libraries/CallBuilder.sol";
 import {
+    AP_PRICE_FEED_STORE,
     AP_PRICE_ORACLE,
     AP_PRICE_ORACLE_FACTORY,
-    AP_PRICE_FEED_STORE,
     NO_VERSION_CONTROL
 } from "../libraries/ContractLiterals.sol";
 import {NestedPriceFeeds} from "../libraries/NestedPriceFeeds.sol";
@@ -69,10 +70,12 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
     // ---------- //
 
     function deployPriceOracle(address pool) external override onlyMarketConfigurators returns (DeployResult memory) {
+        address acl = IMarketConfigurator(msg.sender).acl();
+
         address priceOracle = _deployLatestPatch({
             contractType: AP_PRICE_ORACLE,
             minorVersion: version,
-            constructorParams: abi.encode(_acl(pool)),
+            constructorParams: abi.encode(acl),
             salt: bytes32(bytes20(pool))
         });
 

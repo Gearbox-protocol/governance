@@ -100,7 +100,7 @@ contract MarketConfiguratorFactory is DeployerTrait, IMarketConfiguratorFactory 
             constructorParams: abi.encode(
                 addressProvider, admin, emergencyAdmin, adminFeeTreasury, curatorName, deployGovernor
             ),
-            salt: bytes32(bytes20(msg.sender)) // QUESTION: whose address?
+            salt: bytes32(bytes20(msg.sender))
         });
 
         _registeredMarketConfiguratorsSet.add(marketConfigurator);

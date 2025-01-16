@@ -75,7 +75,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     //
 
     // Emitted when new smart contract was deployed
-    event DeployContact(
+    event DeployContract(
         address indexed addr, bytes32 indexed bytecodeHash, string contractType, uint256 indexed version
     );
 

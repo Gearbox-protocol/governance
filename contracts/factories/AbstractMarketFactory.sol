@@ -51,12 +51,8 @@ abstract contract AbstractMarketFactory is AbstractFactory, IMarketFactory {
         }
     }
 
-    function _acl(address pool) internal view returns (address) {
-        return IPoolV3(pool).acl();
-    }
-
     function _marketConfigurator(address pool) internal view returns (address) {
-        return Ownable(_acl(pool)).owner();
+        return Ownable(IPoolV3(pool).acl()).owner();
     }
 
     function _contractsRegister(address pool) internal view returns (address) {
