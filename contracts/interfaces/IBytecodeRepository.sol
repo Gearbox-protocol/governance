@@ -61,7 +61,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     error NotAllowedSystemContractException(bytes32 bytecodeHash);
 
     /// @notice Thrown when trying to deploy contract with incorrect contract type
-    error ContractNameVersionAlreadyExistsException();
+    error ContractTypeVersionAlreadyExistsException();
 
     error OnlyAuthorCanSyncException();
 

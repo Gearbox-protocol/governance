@@ -160,7 +160,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
 
         // Check if the contract name and version already exists
         if (approvedBytecodeHash[_bytecode.contractType][_bytecode.version] != 0) {
-            revert ContractNameVersionAlreadyExistsException();
+            revert ContractTypeVersionAlreadyExistsException();
         }
 
         address initCodePointer = _bytecode.initCode.write();
@@ -318,15 +318,15 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         bool isSystemContract = allowedSystemContracts[bytecodeHash];
 
         address currentOwner = contractTypeOwner[_contractType];
-        bool isContractNameInPublicDomain = isInPublicDomain(_contractType);
+        bool isContractTypeInPublicDomain = isInPublicDomain(_contractType);
 
         if (currentOwner == address(0) || isSystemContract) {
             contractTypeOwner[_contractType] = author;
-        } else if (isContractNameInPublicDomain && (currentOwner != author)) {
+        } else if (isContractTypeInPublicDomain && (currentOwner != author)) {
             revert NotDomainOwnerException();
         }
 
-        if (isSystemContract || isContractNameInPublicDomain) {
+        if (isSystemContract || isContractTypeInPublicDomain) {
             _approveContract(_contractType, _bytecode.version, bytecodeHash);
         }
     }
@@ -469,8 +469,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     /// @param _contractType Contract type to check
     /// @return bool True if contract is in public domain
     function isInPublicDomain(bytes32 _contractType) public view returns (bool) {
-        string memory contractNameStr = _contractType.fromSmallString();
-        return isPublicDomain(contractNameStr.extractDomain().toSmallString());
+        string memory contractTypeStr = _contractType.fromSmallString();
+        return isPublicDomain(contractTypeStr.extractDomain().toSmallString());
     }
 
     /// @notice Checks if a domain is public
