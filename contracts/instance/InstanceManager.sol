@@ -118,7 +118,7 @@ contract InstanceManager is Ownable, IInstanceManager {
         try ProxyCall(crossChainGovernanceProxy).proxyCall(
             address(bytecodeRepository),
             abi.encodeCall(BytecodeRepository.deploy, (_contractType, _version, abi.encode(addressProvider), 0))
-        ) returns (bool, bytes memory result) {
+        ) returns (bytes memory result) {
             return abi.decode(result, (address));
         } catch {
             return address(0);

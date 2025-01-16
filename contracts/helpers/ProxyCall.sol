@@ -19,14 +19,9 @@ contract ProxyCall is ImmutableOwnableTrait {
     /// @notice Makes a call to target contract with provided data
     /// @param target Address of contract to call
     /// @param data Call data to execute
-    /// @return success Whether the call was successful
     /// @return result The raw return data from the call
-    function proxyCall(address target, bytes calldata data)
-        external
-        onlyOwner
-        returns (bool success, bytes memory result)
-    {
+    function proxyCall(address target, bytes calldata data) external onlyOwner returns (bytes memory result) {
         // Make the call using OpenZeppelin's Address library
-        return (true, target.functionCall(data));
+        return target.functionCall(data);
     }
 }

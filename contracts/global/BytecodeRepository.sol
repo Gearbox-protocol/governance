@@ -236,7 +236,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         // add to deployedContracts
         deployedContracts[newContract] = bytecodeHash;
 
-        emit DeployContact(newContract, bytecodeHash, _contractType.fromSmallString(), _version);
+        emit DeployContract(newContract, bytecodeHash, _contractType.fromSmallString(), _version);
 
         // Auto-transfer ownership if IOwnable
         try Ownable(newContract).transferOwnership(msg.sender) {} catch {}
@@ -273,8 +273,6 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         return Create2.computeAddress(saltUnique, keccak256(bytecodeWithParams));
     }
 
-    // Auditing
-    // TODO:Author should sign _bytecode _bytecode hash!
     /// @notice Allows auditors to sign _bytecode metadata
     /// @param bytecodeHash Hash of the _bytecode metadata to sign
     /// @param reportUrl URL of the audit report
@@ -282,7 +280,6 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     function signBytecodeHash(bytes32 bytecodeHash, string calldata reportUrl, bytes memory signature) external {
         // Must point to existing metadata
         if (!isBytecodeUploaded(bytecodeHash)) {
-            // TODO: change error message
             revert BytecodeIsNotUploadedException(bytecodeHash);
         }
 

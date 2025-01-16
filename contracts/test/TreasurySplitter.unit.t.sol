@@ -55,7 +55,7 @@ contract TreasurySplitterTest is Test {
     }
 
     /// @dev U:[TRS-1]: constructor works correctly
-    function test_TRS_01_constructor() public {
+    function test_TRS_01_constructor() public view {
         Split memory defaultSplit = splitter.defaultSplit();
         assertTrue(defaultSplit.initialized);
         assertEq(defaultSplit.receivers[0], adminFeeTreasury);
