@@ -104,21 +104,21 @@ import {VelodromeV2RouterAdapter} from
 import {DaiUsdsAdapter} from "@gearbox-protocol/integrations-v3/contracts/adapters/sky/DaiUsdsAdapter.sol";
 import {StakingRewardsAdapter} from "@gearbox-protocol/integrations-v3/contracts/adapters/sky/StakingRewardsAdapter.sol";
 
-import {BPTWeightedPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/balancer/BPTWeightedPriceFeed.sol";
-import {BPTStablePriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/balancer/BPTStablePriceFeed.sol";
-import {ZeroPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/ZeroPriceFeed.sol";
-import {YearnPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/yearn/YearnPriceFeed.sol";
-import {BoundedPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/BoundedPriceFeed.sol";
-import {PythPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/updatable/PythPriceFeed.sol";
-import {RedstonePriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/updatable/RedstonePriceFeed.sol";
-import {WstETHPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/lido/WstETHPriceFeed.sol";
-import {CompositePriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/CompositePriceFeed.sol";
-import {MellowLRTPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/mellow/MellowLRTPriceFeed.sol";
-import {PendleTWAPPTPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/pendle/PendleTWAPPTPriceFeed.sol";
-import {CurveUSDPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/curve/CurveUSDPriceFeed.sol";
-import {CurveCryptoLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/curve/CurveCryptoLPPriceFeed.sol";
-import {CurveStableLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/curve/CurveStableLPPriceFeed.sol";
-import {ERC4626PriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/erc4626/ERC4626PriceFeed.sol";
+import {BPTWeightedPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/balancer/BPTWeightedPriceFeed.sol";
+import {BPTStablePriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/balancer/BPTStablePriceFeed.sol";
+import {ZeroPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/ZeroPriceFeed.sol";
+import {YearnPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/yearn/YearnPriceFeed.sol";
+import {BoundedPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/BoundedPriceFeed.sol";
+import {PythPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/updatable/PythPriceFeed.sol";
+import {RedstonePriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/updatable/RedstonePriceFeed.sol";
+import {WstETHPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/lido/WstETHPriceFeed.sol";
+import {CompositePriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/CompositePriceFeed.sol";
+import {MellowLRTPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/mellow/MellowLRTPriceFeed.sol";
+import {PendleTWAPPTPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/pendle/PendleTWAPPTPriceFeed.sol";
+import {CurveUSDPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/curve/CurveUSDPriceFeed.sol";
+import {CurveCryptoLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/curve/CurveCryptoLPPriceFeed.sol";
+import {CurveStableLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/curve/CurveStableLPPriceFeed.sol";
+import {ERC4626PriceFeed} from "@gearbox-protocol/oracles-v3/contracts/adapters/erc4626/ERC4626PriceFeed.sol";
 
 import {console} from "forge-std/console.sol";
 
