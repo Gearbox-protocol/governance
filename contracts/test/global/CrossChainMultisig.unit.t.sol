@@ -7,21 +7,18 @@ import {CrossChainCall, SignedProposal} from "../../interfaces/ICrossChainMultis
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ICrossChainMultisig} from "../../interfaces/ICrossChainMultisig.sol";
 import {console} from "forge-std/console.sol";
+import {SignatureHelper} from "../helpers/SignatureHelper.sol";
 
-contract CrossChainMultisigTest is Test {
+contract CrossChainMultisigTest is Test, SignatureHelper {
     CrossChainMultisigHarness multisig;
 
-    uint256 signer0PrivateKey = vm.randomUint();
-    uint256 signer1PrivateKey = vm.randomUint();
+    uint256 signer0PrivateKey = _generatePrivateKey("SIGNER_1");
+    uint256 signer1PrivateKey = _generatePrivateKey("SIGNER_2");
     address[] signers;
     uint8 constant THRESHOLD = 2;
     address owner;
 
-    bytes32 constant DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 constant CROSS_CHAIN_CALL_TYPEHASH =
-        keccak256("CrossChainCall(uint256 chainId,address target,bytes callData)");
-    bytes32 constant PROPOSAL_TYPEHASH = keccak256("Proposal(bytes32 proposalHash,bytes32 prevHash)");
+    bytes32 PROPOSAL_TYPEHASH = keccak256("Proposal(string name,bytes32 proposalHash,bytes32 prevHash)");
 
     function setUp() public {
         // Setup initial signers
@@ -38,7 +35,7 @@ contract CrossChainMultisigTest is Test {
 
     function _getDigest(bytes32 structHash) internal view returns (bytes32) {
         bytes32 domainSeparator = multisig.domainSeparatorV4();
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        return ECDSA.toTypedDataHash(domainSeparator, structHash);
     }
 
     function _signProposal(uint256 privateKey, CrossChainCall[] memory calls, bytes32 prevHash)
@@ -47,14 +44,13 @@ contract CrossChainMultisigTest is Test {
         returns (bytes memory)
     {
         bytes32 proposalHash = multisig.hashProposal("test", calls, prevHash);
-        bytes32 digest = _getDigest(proposalHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        bytes32 structHash = _getDigest(proposalHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, structHash);
         return abi.encodePacked(r, s, v);
     }
 
-    function _signProposalHash(uint256 privateKey, bytes32 proposalHash) internal view returns (bytes memory) {
-        bytes32 digest = _getDigest(proposalHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+    function _signProposalHash(uint256 privateKey, bytes32 structHash) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, _getDigest(structHash));
         return abi.encodePacked(r, s, v);
     }
 
@@ -174,8 +170,19 @@ contract CrossChainMultisigTest is Test {
         multisig.submitProposal("test", calls, bytes32(0));
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
+        console.log(signers[0]);
+        console.logBytes32(proposalHash);
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
+
+        console.log("test");
+        console.logBytes32(structHash);
+
         // Generate EIP-712 signature
-        bytes memory signature = _signProposalHash(signer0PrivateKey, proposalHash);
+        bytes memory signature = _signProposalHash(signer0PrivateKey, structHash);
+
+        console.logBytes(signature);
 
         // Sign with first signer
         multisig.signProposal(proposalHash, signature);

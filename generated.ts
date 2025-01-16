@@ -1002,15 +1002,20 @@ export const iCrossChainMultisigAbi = [
   },
   {
     type: 'function',
-    inputs: [
-      { name: 'proposalHash', internalType: 'bytes32', type: 'bytes32' },
-    ],
-    name: 'getExecutedProposal',
+    inputs: [],
+    name: 'getExecutedProposalHashes',
+    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getExecutedProposals',
     outputs: [
       {
         name: '',
-        internalType: 'struct SignedProposal',
-        type: 'tuple',
+        internalType: 'struct SignedProposal[]',
+        type: 'tuple[]',
         components: [
           { name: 'name', internalType: 'string', type: 'string' },
           { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
@@ -1032,20 +1037,15 @@ export const iCrossChainMultisigAbi = [
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'getExecutedProposalHashes',
-    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'getExecutedProposals',
+    inputs: [
+      { name: 'proposalHash', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'getProposal',
     outputs: [
       {
         name: '',
-        internalType: 'struct SignedProposal[]',
-        type: 'tuple[]',
+        internalType: 'struct SignedProposal',
+        type: 'tuple',
         components: [
           { name: 'name', internalType: 'string', type: 'string' },
           { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
