@@ -132,7 +132,7 @@ interface ICrossChainMultisig is IVersion {
     function getExecutedProposalHashes() external view returns (bytes32[] memory);
 
     /// @notice Returns a single executed proposal
-    function getExecutedProposal(bytes32 proposalHash) external view returns (SignedProposal memory);
+    function getProposal(bytes32 proposalHash) external view returns (SignedProposal memory);
 
     /// @notice Returns the list of current signers
     function getSigners() external view returns (address[] memory);
