@@ -42,7 +42,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
     EnumerableSet.AddressSet internal _signers;
 
-    bytes32[] public executedProposalHashes;
+    bytes32[] internal _executedProposalHashes;
 
     mapping(bytes32 => EnumerableSet.Bytes32Set) internal _connectedProposalHashes;
     mapping(bytes32 => SignedProposal) internal _signedProposals;
@@ -162,6 +162,10 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         }
     }
 
+    // @dev: Verify proposal signatures and return number of valid signatures
+    // @param: signatures - Array of signatures to verify
+    // @param: proposalHash - Hash of the proposal to verify signatures for
+    // @return: validSignatures - Number of valid signatures
     function _verifySignatures(bytes[] memory signatures, bytes32 proposalHash)
         internal
         view
@@ -188,6 +192,9 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         }
     }
 
+    // @dev: Execute proposal calls and update state
+    // @param: calls - Array of cross-chain calls to execute
+    // @param: proposalHash - Hash of the proposal being executed
     function _executeProposal(CrossChainCall[] memory calls, bytes32 proposalHash) internal {
         // Execute each call in the proposal
         uint256 len = calls.length;
@@ -201,15 +208,19 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
             }
         }
 
-        executedProposalHashes.push(proposalHash);
+        _executedProposalHashes.push(proposalHash);
         lastProposalHash = proposalHash;
 
         emit ExecuteProposal(proposalHash);
     }
 
     //
-    // MULTISIG FUNCTIONS
+    // MULTISIG CONFIGURATION FUNCTIONS
     //
+    // They user onlySelf pattern to be executed
+
+    // @notice: Add a new signer to the multisig
+    // @param: newSigner - Address of the new signer
     function addSigner(address newSigner) external onlySelf {
         _addSigner(newSigner);
     }
@@ -219,11 +230,15 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         emit AddSigner(newSigner);
     }
 
+    // @notice: Remove a signer from the multisig
+    // @param: signer - Address of the signer to remove
     function removeSigner(address signer) external onlySelf {
         if (!_signers.remove(signer)) revert SignerDoesNotExistException();
         emit RemoveSigner(signer);
     }
 
+    // @notice: Set the confirmation threshold for the multisig
+    // @param: newConfirmationThreshold - New confirmation threshold
     function setConfirmationThreshold(uint8 newConfirmationThreshold) external onlySelf {
         _setConfirmationThreshold(newConfirmationThreshold);
     }
@@ -245,7 +260,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
     function hashProposal(string calldata name, CrossChainCall[] calldata calls, bytes32 prevHash)
         public
-        view
+        pure
         returns (bytes32)
     {
         bytes32[] memory callsHash = new bytes32[](calls.length);
@@ -279,39 +294,26 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     }
 
     function getExecutedProposals() external view returns (SignedProposal[] memory result) {
-        uint256 len = executedProposalHashes.length;
+        uint256 len = _executedProposalHashes.length;
         result = new SignedProposal[](len);
         for (uint256 i = 0; i < len; ++i) {
-            result[i] = _signedProposals[executedProposalHashes[i]];
+            result[i] = _signedProposals[_executedProposalHashes[i]];
         }
     }
 
-    function getExecutedProposals(uint256 offset, uint256 limit)
-        external
-        view
-        returns (SignedProposal[] memory result)
-    {
-        uint256 len = executedProposalHashes.length;
-        if (offset >= len) {
-            return new SignedProposal[](0);
-        }
+    function getExecutedProposal(bytes32 proposalHash) external view returns (SignedProposal memory result) {
+        return _signedProposals[proposalHash];
+    }
 
-        uint256 end = offset + limit;
-        if (end > len) {
-            end = len;
-        }
-
-        result = new SignedProposal[](end - offset);
-        for (uint256 i = offset; i < end; ++i) {
-            result[i - offset] = _signedProposals[executedProposalHashes[i]];
-        }
+    function getExecutedProposalHashes() external view returns (bytes32[] memory) {
+        return _executedProposalHashes;
     }
 
     function isSigner(address account) external view returns (bool) {
         return _signers.contains(account);
     }
 
-    function signedProposals(bytes32 proposalHash) external view returns (SignedProposal memory) {
+    function getSignedProposal(bytes32 proposalHash) external view returns (SignedProposal memory) {
         return _signedProposals[proposalHash];
     }
 

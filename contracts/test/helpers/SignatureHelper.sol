@@ -26,7 +26,7 @@ contract SignatureHelper is Test {
             revert PrevCallerIsAlreadySet();
         }
 
-        (VmSafe.CallerMode callerMode, address msgSender, address txOrigin) = vm.readCallers();
+        (VmSafe.CallerMode callerMode, address msgSender,) = vm.readCallers();
         if (callerMode == VmSafe.CallerMode.Broadcast || callerMode == VmSafe.CallerMode.RecurrentBroadcast) {
             vm.stopBroadcast();
             vm.startBroadcast(addr);
@@ -37,7 +37,7 @@ contract SignatureHelper is Test {
     }
 
     function _stopPrankOrBroadcast() internal {
-        (Vm.CallerMode callerMode, address msgSender, address txOrigin) = vm.readCallers();
+        (Vm.CallerMode callerMode,,) = vm.readCallers();
         if (callerMode == VmSafe.CallerMode.Broadcast || callerMode == VmSafe.CallerMode.RecurrentBroadcast) {
             vm.stopBroadcast();
             if (prevCaller != address(0)) {

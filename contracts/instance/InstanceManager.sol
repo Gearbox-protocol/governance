@@ -115,11 +115,10 @@ contract InstanceManager is Ownable, IInstanceManager {
     }
 
     function _deploySystemContract(bytes32 _contractName, uint256 _version) internal returns (address) {
-        // TODO: Check that code is not forbidden and audited - otherwise skip
         try ProxyCall(crossChainGovernanceProxy).proxyCall(
             address(bytecodeRepository),
             abi.encodeCall(BytecodeRepository.deploy, (_contractName, _version, abi.encode(addressProvider), 0))
-        ) returns (bool success, bytes memory result) {
+        ) returns (bool, bytes memory result) {
             return abi.decode(result, (address));
         } catch {
             return address(0);

@@ -318,16 +318,16 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         bool isSystemContract = allowedSystemContracts[bytecodeHash];
 
         address currentOwner = contractTypeOwner[_contractType];
-        bool isPublicDomain = isContractNameInPublicDomain(_contractType);
+        bool isContractNameInPublicDomain = isInPublicDomain(_contractType);
 
         if (currentOwner == address(0) || isSystemContract) {
             contractTypeOwner[_contractType] = author;
-        } else if (isPublicDomain && (currentOwner != author)) {
+        } else if (isContractNameInPublicDomain && (currentOwner != author)) {
             revert NotDomainOwnerException();
         }
 
-        if (isSystemContract || isPublicDomain) {
-            _approveContract(_contractType, _bytecode.version, bytecodeHash, author);
+        if (isSystemContract || isContractNameInPublicDomain) {
+            _approveContract(_contractType, _bytecode.version, bytecodeHash);
         }
     }
 
@@ -339,13 +339,13 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         if (isBytecodeUploaded(bytecodeHash) && isAuditBytecode(bytecodeHash)) {
             BytecodePointer storage _bytecode = _bytecodeByHash[bytecodeHash];
             contractTypeOwner[_bytecode.contractType] = _bytecode.author;
-            _approveContract(_bytecode.contractType, _bytecode.version, bytecodeHash, _bytecode.author);
+            _approveContract(_bytecode.contractType, _bytecode.version, bytecodeHash);
         }
     }
 
     /// @notice Internal function to approve contract _bytecode
     /// @param bytecodeHash Hash of the _bytecode metadata to approve
-    function _approveContract(bytes32 _contractType, uint256 _version, bytes32 bytecodeHash, address author) internal {
+    function _approveContract(bytes32 _contractType, uint256 _version, bytes32 bytecodeHash) internal {
         if (approvedBytecodeHash[_contractType][_version] == 0) {
             approvedBytecodeHash[_contractType][_version] = bytecodeHash;
 
@@ -468,7 +468,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     /// @notice Checks if a contract name belongs to public domain
     /// @param _contractType Contract type to check
     /// @return bool True if contract is in public domain
-    function isContractNameInPublicDomain(bytes32 _contractType) public view returns (bool) {
+    function isInPublicDomain(bytes32 _contractType) public view returns (bool) {
         string memory contractNameStr = _contractType.fromSmallString();
         return isPublicDomain(contractNameStr.extractDomain().toSmallString());
     }

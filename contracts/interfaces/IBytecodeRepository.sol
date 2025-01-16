@@ -183,7 +183,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     function revokeApproval(bytes32 contractType, uint256 version, bytes32 bytecodeHash) external;
 
     /// @notice Checks if a contract name belongs to public domain
-    function isContractNameInPublicDomain(bytes32 contractType) external view returns (bool);
+    function isInPublicDomain(bytes32 contractType) external view returns (bool);
 
     /// @notice Checks if a domain is public
     function isPublicDomain(bytes32 domain) external view returns (bool);

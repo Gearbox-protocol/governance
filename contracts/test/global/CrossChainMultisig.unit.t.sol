@@ -134,7 +134,7 @@ contract CrossChainMultisigTest is Test {
         multisig.submitProposal("test", calls, bytes32(0));
 
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
-        SignedProposal memory proposal = multisig.signedProposals(proposalHash);
+        SignedProposal memory proposal = multisig.getSignedProposal(proposalHash);
 
         assertEq(proposal.calls.length, 1);
         assertEq(proposal.prevHash, bytes32(0));
@@ -175,16 +175,13 @@ contract CrossChainMultisigTest is Test {
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
         // Generate EIP-712 signature
-        bytes32 domainSeparator = multisig.domainSeparatorV4();
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, proposalHash));
-
         bytes memory signature = _signProposalHash(signer0PrivateKey, proposalHash);
 
         // Sign with first signer
         multisig.signProposal(proposalHash, signature);
 
         // Verify proposal state after signing
-        SignedProposal memory proposal = multisig.signedProposals(proposalHash);
+        SignedProposal memory proposal = multisig.getSignedProposal(proposalHash);
         assertEq(proposal.signatures.length, 1);
         assertEq(proposal.signatures[0], signature);
 
@@ -297,7 +294,7 @@ contract CrossChainMultisigTest is Test {
 
         // Verify proposal was executed
         assertEq(multisig.lastProposalHash(), proposalHash, "lastProposalHash");
-        assertEq(multisig.executedProposalHashes(0), proposalHash, "executedProposalHashes");
+        assertEq(multisig.getExecutedProposalHashes()[0], proposalHash, "executedProposalHashes");
     }
 
     /// @dev U:[SM-12]: _verifyProposal reverts if prevHash doesn't match lastProposalHash
@@ -333,7 +330,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-15]: _verifyProposal succeeds with valid calls
-    function test_CCG_15_VerifyProposalValidCalls() public {
+    function test_CCG_15_VerifyProposalValidCalls() public view {
         CrossChainCall[] memory calls = new CrossChainCall[](3);
 
         // Valid call on same chain
@@ -350,7 +347,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-16]: _verifySignatures returns 0 for empty signatures array
-    function test_CCG_16_VerifySignaturesEmptyArray() public {
+    function test_CCG_16_VerifySignaturesEmptyArray() public view {
         bytes[] memory signatures = new bytes[](0);
         bytes32 proposalHash = keccak256("test");
 
@@ -359,7 +356,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-17]: _verifySignatures correctly counts valid signatures
-    function test_CCG_17_VerifySignaturesValidSignatures() public {
+    function test_CCG_17_VerifySignaturesValidSignatures() public view {
         bytes32 proposalHash = keccak256("test");
 
         // Create array with 2 valid signatures
@@ -372,7 +369,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-18]: _verifySignatures ignores invalid signatures
-    function test_CCG_18_VerifySignaturesInvalidSignatures() public {
+    function test_CCG_18_VerifySignaturesInvalidSignatures() public view {
         bytes32 proposalHash = keccak256("test");
 
         // Create array with 1 valid and 1 invalid signature
@@ -400,7 +397,7 @@ contract CrossChainMultisigTest is Test {
     }
 
     /// @dev U:[SM-20]: _verifySignatures ignores signatures from non-signers
-    function test_CCG_20_VerifySignaturesNonSigner() public {
+    function test_CCG_20_VerifySignaturesNonSigner() public view {
         bytes32 proposalHash = keccak256("test");
 
         // Create random non-signer private key
@@ -423,6 +420,6 @@ contract CrossChainMultisigTest is Test {
         signatures[1] = hex"1234"; // Malformed signature
 
         vm.expectRevert("ECDSA: invalid signature length");
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        multisig.exposed_verifySignatures(signatures, proposalHash);
     }
 }
