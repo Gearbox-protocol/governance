@@ -176,13 +176,8 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         bytes32 structHash =
             keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
-        console.log("test");
-        console.logBytes32(structHash);
-
         // Generate EIP-712 signature
         bytes memory signature = _signProposalHash(signer0PrivateKey, structHash);
-
-        console.logBytes(signature);
 
         // Sign with first signer
         multisig.signProposal(proposalHash, signature);
@@ -240,8 +235,11 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         multisig.submitProposal("test", calls, bytes32(0));
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
+
         // Sign first time
-        bytes memory signature = _signProposalHash(signer0PrivateKey, proposalHash);
+        bytes memory signature = _signProposalHash(signer0PrivateKey, structHash);
         multisig.signProposal(proposalHash, signature);
 
         // Try to sign again with same signer
@@ -285,8 +283,11 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         multisig.submitProposal("test", calls, bytes32(0));
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
 
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
+
         // Sign with first signer
-        bytes memory sig0 = _signProposalHash(signer0PrivateKey, proposalHash);
+        bytes memory sig0 = _signProposalHash(signer0PrivateKey, structHash);
         multisig.signProposal(proposalHash, sig0);
 
         // Sign with second signer which should trigger execution
@@ -296,7 +297,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.expectEmit(true, true, true, true);
         emit ICrossChainMultisig.ExecuteProposal(proposalHash);
-        bytes memory sig1 = _signProposalHash(signer1PrivateKey, proposalHash);
+        bytes memory sig1 = _signProposalHash(signer1PrivateKey, structHash);
         multisig.signProposal(proposalHash, sig1);
 
         // Verify proposal was executed
@@ -363,58 +364,96 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
     }
 
     /// @dev U:[SM-17]: _verifySignatures correctly counts valid signatures
-    function test_CCG_17_VerifySignaturesValidSignatures() public view {
-        bytes32 proposalHash = keccak256("test");
+    function test_CCG_17_VerifySignaturesValidSignatures() public {
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create array with 2 valid signatures
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash);
-        signatures[1] = _signProposalHash(signer1PrivateKey, proposalHash);
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash);
+        signatures[1] = _signProposalHash(signer1PrivateKey, structHash);
 
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 2);
     }
 
     /// @dev U:[SM-18]: _verifySignatures ignores invalid signatures
-    function test_CCG_18_VerifySignaturesInvalidSignatures() public view {
-        bytes32 proposalHash = keccak256("test");
+    function test_CCG_18_VerifySignaturesInvalidSignatures() public {
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create array with 1 valid and 1 invalid signature
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash);
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash);
 
         // Create invalid signature by signing different hash
         signatures[1] = _signProposalHash(signer1PrivateKey, keccak256("wrong hash"));
 
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 1);
     }
     /// @dev U:[SM-19]: _verifySignatures reverts with AlreadySignedException on duplicate signatures from same signer
 
     function test_CCG_19_VerifySignaturesDuplicateSigner() public {
-        bytes32 proposalHash = keccak256("test");
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create array with 2 signatures from same signer
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash);
-        signatures[1] = _signProposalHash(signer0PrivateKey, proposalHash);
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash);
+        signatures[1] = _signProposalHash(signer0PrivateKey, structHash);
+
+        bytes32 digest = _getDigest(structHash);
 
         vm.expectRevert(ICrossChainMultisig.AlreadySignedException.selector);
-        multisig.exposed_verifySignatures(signatures, proposalHash);
+        multisig.exposed_verifySignatures(signatures, digest);
     }
 
     /// @dev U:[SM-20]: _verifySignatures ignores signatures from non-signers
-    function test_CCG_20_VerifySignaturesNonSigner() public view {
-        bytes32 proposalHash = keccak256("test");
+    function test_CCG_20_VerifySignaturesNonSigner() public {
+        vm.chainId(1); // Set to mainnet
+        CrossChainCall[] memory calls = new CrossChainCall[](1);
+        calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
+
+        vm.prank(owner);
+        multisig.submitProposal("test", calls, bytes32(0));
+        bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
+
+        bytes32 structHash =
+            keccak256(abi.encode(PROPOSAL_TYPEHASH, keccak256(bytes("test")), proposalHash, bytes32(0)));
 
         // Create random non-signer private key
         uint256 nonSignerKey = uint256(keccak256("non-signer"));
 
         bytes[] memory signatures = new bytes[](2);
-        signatures[0] = _signProposalHash(signer0PrivateKey, proposalHash); // Valid signer
-        signatures[1] = _signProposalHash(nonSignerKey, proposalHash); // Non-signer
+        signatures[0] = _signProposalHash(signer0PrivateKey, structHash); // Valid signer
+        signatures[1] = _signProposalHash(nonSignerKey, structHash); // Non-signer
 
-        uint256 validCount = multisig.exposed_verifySignatures(signatures, proposalHash);
+        uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 1);
     }
 

@@ -22,12 +22,8 @@ contract CrossChainMultisigHarness is CrossChainMultisig {
         _verifyProposal(calls, prevHash);
     }
 
-    function exposed_verifySignatures(bytes[] memory signatures, bytes32 proposalHash)
-        external
-        view
-        returns (uint256)
-    {
-        return _verifySignatures(signatures, proposalHash);
+    function exposed_verifySignatures(bytes[] memory signatures, bytes32 structHash) external view returns (uint256) {
+        return _verifySignatures(signatures, structHash);
     }
 
     function exposed_executeProposal(CrossChainCall[] memory calls, bytes32 proposalHash) external {
