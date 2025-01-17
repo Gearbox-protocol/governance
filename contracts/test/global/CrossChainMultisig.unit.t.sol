@@ -130,7 +130,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         multisig.submitProposal("test", calls, bytes32(0));
 
         bytes32 proposalHash = multisig.hashProposal("test", calls, bytes32(0));
-        SignedProposal memory proposal = multisig.getSignedProposal(proposalHash);
+        SignedProposal memory proposal = multisig.getProposal(proposalHash);
 
         assertEq(proposal.calls.length, 1);
         assertEq(proposal.prevHash, bytes32(0));
@@ -183,7 +183,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         multisig.signProposal(proposalHash, signature);
 
         // Verify proposal state after signing
-        SignedProposal memory proposal = multisig.getSignedProposal(proposalHash);
+        SignedProposal memory proposal = multisig.getProposal(proposalHash);
         assertEq(proposal.signatures.length, 1);
         assertEq(proposal.signatures[0], signature);
 

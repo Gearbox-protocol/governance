@@ -66,7 +66,7 @@ contract CCGHelper is SignatureHelper {
     function _signCurrentProposal() internal {
         bytes32[] memory currentProposalHashes = multisig.getCurrentProposalHashes();
 
-        SignedProposal memory currentProposal = multisig.getSignedProposal(currentProposalHashes[0]);
+        SignedProposal memory currentProposal = multisig.getProposal(currentProposalHashes[0]);
 
         bytes32 proposalHash =
             multisig.hashProposal(currentProposal.name, currentProposal.calls, currentProposal.prevHash);

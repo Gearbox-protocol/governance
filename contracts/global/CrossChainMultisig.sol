@@ -281,32 +281,16 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     //
     // GETTERS
     //
-    function getCurrentProposalHashes() external view returns (bytes32[] memory) {
-        return _connectedProposalHashes[lastProposalHash].values();
-    }
-
-    function getCurrentProposals() external view returns (SignedProposal[] memory result) {
-        uint256 len = _connectedProposalHashes[lastProposalHash].length();
-        result = new SignedProposal[](len);
-        for (uint256 i = 0; i < len; ++i) {
-            result[i] = _signedProposals[_connectedProposalHashes[lastProposalHash].at(i)];
-        }
-    }
-
     function getSigners() external view returns (address[] memory) {
         return _signers.values();
     }
 
-    function getExecutedProposals() external view returns (SignedProposal[] memory result) {
-        uint256 len = _executedProposalHashes.length;
-        result = new SignedProposal[](len);
-        for (uint256 i = 0; i < len; ++i) {
-            result[i] = _signedProposals[_executedProposalHashes[i]];
-        }
-    }
-
     function getProposal(bytes32 proposalHash) external view returns (SignedProposal memory result) {
         return _signedProposals[proposalHash];
+    }
+
+    function getCurrentProposalHashes() external view returns (bytes32[] memory) {
+        return _connectedProposalHashes[lastProposalHash].values();
     }
 
     function getExecutedProposalHashes() external view returns (bytes32[] memory) {
@@ -315,10 +299,6 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
     function isSigner(address account) external view returns (bool) {
         return _signers.contains(account);
-    }
-
-    function getSignedProposal(bytes32 proposalHash) external view returns (SignedProposal memory) {
-        return _signedProposals[proposalHash];
     }
 
     function domainSeparatorV4() external view returns (bytes32) {
