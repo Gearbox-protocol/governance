@@ -11,6 +11,7 @@ import {LibString} from "@solady/utils/LibString.sol";
 
 contract BCRHelpers is SignatureHelper {
     using LibString for bytes32;
+    using LibString for uint256;
 
     address internal bytecodeRepository;
     uint256 internal auditorKey;
@@ -25,9 +26,11 @@ contract BCRHelpers is SignatureHelper {
 
         authorKey = _generatePrivateKey("AUTHOR");
         author = vm.rememberKey(authorKey);
+        // Print debug info
+        console.log("BCR setup:");
+        console.log("Auditor:", auditor, "Key:", auditorKey.toHexString());
+        console.log("Author:", author, "Key:", authorKey.toHexString());
     }
-
-    function _setUpBCR() internal {}
 
     function _uploadByteCode(bytes memory _initCode, bytes32 _contractType, uint256 _version)
         internal

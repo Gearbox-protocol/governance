@@ -12,6 +12,7 @@ interface IInstanceManager is IVersion {
     function treasuryProxy() external view returns (address);
     function crossChainGovernanceProxy() external view returns (address);
     function isActivated() external view returns (bool);
+    function owner() external view returns (address);
 
     function activate(address instanceOwner, address treasury, address weth, address gear) external;
     function deploySystemContract(bytes32 contractType, uint256 version, bool saveVersion) external;

@@ -12,6 +12,7 @@ export default defineConfig({
         "ICrossChainMultisig.sol/**.json",
         "IPriceFeedStore.sol/**.json",
         "IInstanceManager.sol/**.json",
+        "IMarketConfiguratorFactory.sol/**.json",
       ],
     }),
   ],

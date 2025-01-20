@@ -10,6 +10,9 @@ import {CrossChainCall, SignedProposal} from "../../../contracts/interfaces/ICro
 import {console} from "forge-std/console.sol";
 import {LibString} from "@solady/utils/LibString.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
+
+import {console2} from "forge-std/console2.sol";
 
 contract CCGHelper is SignatureHelper {
     using LibString for bytes;
@@ -35,8 +38,13 @@ contract CCGHelper is SignatureHelper {
         signer2Key = _generatePrivateKey("SIGNER_2");
         signer1 = vm.rememberKey(signer1Key);
         signer2 = vm.rememberKey(signer2Key);
-
         dao = vm.rememberKey(_generatePrivateKey("DAO"));
+
+        // Print debug info
+        console.log("Cross chain multisig setup:");
+        console.log("Signer 1:", signer1, "Key:", signer1Key.toHexString());
+        console.log("Signer 2:", signer2, "Key:", signer2Key.toHexString());
+        console.log("DAO:", dao);
     }
 
     function _setUpCCG() internal {
@@ -44,8 +52,6 @@ contract CCGHelper is SignatureHelper {
         address[] memory initialSigners = new address[](2);
         initialSigners[0] = signer1;
         initialSigners[1] = signer2;
-
-        // EACH NETWORK SETUP
 
         // Deploy CrossChainMultisig with 2 signers and threshold of 2
         multisig = new CrossChainMultisig{salt: "SALT"}(
@@ -55,6 +61,30 @@ contract CCGHelper is SignatureHelper {
         );
 
         prevProposalHash = 0;
+    }
+
+    function _attachCCG() internal {
+        address ccg = computeCCGAddress();
+
+        if (ccg.code.length == 0) {
+            revert("CCG not deployed");
+        }
+        multisig = CrossChainMultisig(ccg);
+
+        prevProposalHash = multisig.lastProposalHash();
+    }
+
+    function computeCCGAddress() internal view returns (address) {
+        address[] memory initialSigners = new address[](2);
+        initialSigners[0] = signer1;
+        initialSigners[1] = signer2;
+
+        bytes memory creationCode =
+            abi.encodePacked(type(CrossChainMultisig).creationCode, abi.encode(initialSigners, 2, dao));
+
+        return Create2.computeAddress(
+            bytes32("SALT"), keccak256(creationCode), address(0x4e59b44847b379578588920cA78FbF26c0B4956C)
+        );
     }
 
     function _submitProposal(string memory name, CrossChainCall[] memory calls) internal {

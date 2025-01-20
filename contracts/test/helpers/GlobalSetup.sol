@@ -190,6 +190,10 @@ contract GlobalSetup is Test, InstanceManagerHelper {
         _submitProposalAndSign("System contracts", calls);
     }
 
+    function _attachGlobalContracts() internal {
+        _attachInstanceManager();
+    }
+
     function _setCoreContracts() internal {
         contractsToUpload.push(
             UploadableContract({initCode: type(PoolFactory).creationCode, contractType: AP_POOL_FACTORY, version: 3_10})

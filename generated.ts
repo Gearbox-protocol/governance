@@ -700,7 +700,7 @@ export const iBytecodeRepositoryAbi = [
         indexed: true,
       },
     ],
-    name: 'DeployContact',
+    name: 'DeployContract',
   },
   {
     type: 'event',
@@ -975,29 +975,8 @@ export const iCrossChainMultisigAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'getCurrentProposals',
-    outputs: [
-      {
-        name: '',
-        internalType: 'struct SignedProposal[]',
-        type: 'tuple[]',
-        components: [
-          { name: 'name', internalType: 'string', type: 'string' },
-          { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
-          {
-            name: 'calls',
-            internalType: 'struct CrossChainCall[]',
-            type: 'tuple[]',
-            components: [
-              { name: 'chainId', internalType: 'uint256', type: 'uint256' },
-              { name: 'target', internalType: 'address', type: 'address' },
-              { name: 'callData', internalType: 'bytes', type: 'bytes' },
-            ],
-          },
-          { name: 'signatures', internalType: 'bytes[]', type: 'bytes[]' },
-        ],
-      },
-    ],
+    name: 'getCurrentProposalHashes',
+    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
     stateMutability: 'view',
   },
   {
@@ -1009,68 +988,10 @@ export const iCrossChainMultisigAbi = [
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'getExecutedProposals',
-    outputs: [
-      {
-        name: '',
-        internalType: 'struct SignedProposal[]',
-        type: 'tuple[]',
-        components: [
-          { name: 'name', internalType: 'string', type: 'string' },
-          { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
-          {
-            name: 'calls',
-            internalType: 'struct CrossChainCall[]',
-            type: 'tuple[]',
-            components: [
-              { name: 'chainId', internalType: 'uint256', type: 'uint256' },
-              { name: 'target', internalType: 'address', type: 'address' },
-              { name: 'callData', internalType: 'bytes', type: 'bytes' },
-            ],
-          },
-          { name: 'signatures', internalType: 'bytes[]', type: 'bytes[]' },
-        ],
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [
       { name: 'proposalHash', internalType: 'bytes32', type: 'bytes32' },
     ],
     name: 'getProposal',
-    outputs: [
-      {
-        name: '',
-        internalType: 'struct SignedProposal',
-        type: 'tuple',
-        components: [
-          { name: 'name', internalType: 'string', type: 'string' },
-          { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
-          {
-            name: 'calls',
-            internalType: 'struct CrossChainCall[]',
-            type: 'tuple[]',
-            components: [
-              { name: 'chainId', internalType: 'uint256', type: 'uint256' },
-              { name: 'target', internalType: 'address', type: 'address' },
-              { name: 'callData', internalType: 'bytes', type: 'bytes' },
-            ],
-          },
-          { name: 'signatures', internalType: 'bytes[]', type: 'bytes[]' },
-        ],
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: 'proposalHash', internalType: 'bytes32', type: 'bytes32' },
-    ],
-    name: 'getSignedProposal',
     outputs: [
       {
         name: '',
@@ -1395,6 +1316,13 @@ export const iInstanceManagerAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'key', internalType: 'string', type: 'string' },
       { name: 'addr', internalType: 'address', type: 'address' },
@@ -1428,6 +1356,161 @@ export const iInstanceManagerAbi = [
     name: 'version',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+]
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IMarketConfiguratorFactory
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iMarketConfiguratorFactoryAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'marketConfigurator', internalType: 'address', type: 'address' },
+    ],
+    name: 'addMarketConfigurator',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'addressProvider',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bytecodeRepository',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'contractType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'admin', internalType: 'address', type: 'address' },
+      { name: 'emergencyAdmin', internalType: 'address', type: 'address' },
+      { name: 'adminFeeTreasury', internalType: 'address', type: 'address' },
+      { name: 'curatorName', internalType: 'string', type: 'string' },
+      { name: 'deployGovernor', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'createMarketConfigurator',
+    outputs: [
+      { name: 'marketConfigurator', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getMarketConfigurators',
+    outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getShutdownMarketConfigurators',
+    outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'isMarketConfigurator',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'marketConfigurator', internalType: 'address', type: 'address' },
+    ],
+    name: 'shutdownMarketConfigurator',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'version',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'marketConfigurator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'name', internalType: 'string', type: 'string', indexed: false },
+    ],
+    name: 'CreateMarketConfigurator',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'marketConfigurator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'ShutdownMarketConfigurator',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'addr', internalType: 'address', type: 'address' }],
+    name: 'AddressIsNotMarketConfiguratorException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotCrossChainGovernanceException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotMarketConfiguratorAdminException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotMarketConfiguratorException',
+  },
+  {
+    type: 'error',
+    inputs: [],
+    name: 'CantShutdownMarketConfiguratorException',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'marketConfigurator', internalType: 'address', type: 'address' },
+    ],
+    name: 'MarketConfiguratorIsAlreadyAddedException',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'marketConfigruator', internalType: 'address', type: 'address' },
+    ],
+    name: 'MarketConfiguratorIsAlreadyShutdownException',
   },
 ]
 
