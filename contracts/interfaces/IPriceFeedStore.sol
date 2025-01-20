@@ -6,6 +6,11 @@ pragma solidity ^0.8.23;
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {IImmutableOwnableTrait} from "./base/IImmutableOwnableTrait.sol";
 
+struct ConnectedPriceFeed {
+    address token;
+    address[] priceFeeds;
+}
+
 interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     //
     // ERRORS
@@ -43,6 +48,9 @@ interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     function isAllowedPriceFeed(address token, address priceFeed) external view returns (bool);
     function getStalenessPeriod(address priceFeed) external view returns (uint32);
     function getAllowanceTimestamp(address token, address priceFeed) external view returns (uint256);
+    function getTokenPriceFeedsMap() external view returns (ConnectedPriceFeed[] memory);
+    function getKnownTokens() external view returns (address[] memory);
+    function getKnownPriceFeeds() external view returns (address[] memory);
 
     //
     // CONFIGURATION

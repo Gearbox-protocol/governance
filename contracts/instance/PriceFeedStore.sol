@@ -52,7 +52,7 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
     {}
 
     /// @notice Returns the list of price feeds available for a token
-    function getPriceFeeds(address token) external view returns (address[] memory) {
+    function getPriceFeeds(address token) public view returns (address[] memory) {
         return _allowedPriceFeeds[token].values();
     }
 
@@ -74,6 +74,18 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
 
     function getKnownTokens() external view returns (address[] memory) {
         return _knownTokens.values();
+    }
+
+    function getTokenPriceFeedsMap() external view returns (ConnectedPriceFeed[] memory) {
+        address[] memory tokens = _knownTokens.values();
+        ConnectedPriceFeed[] memory connectedPriceFeeds = new ConnectedPriceFeed[](tokens.length);
+
+        uint256 len = tokens.length;
+        for (uint256 i = 0; i < len; ++i) {
+            connectedPriceFeeds[i].token = tokens[i];
+            connectedPriceFeeds[i].priceFeeds = getPriceFeeds(tokens[i]);
+        }
+        return connectedPriceFeeds;
     }
 
     function getKnownPriceFeeds() external view returns (address[] memory) {

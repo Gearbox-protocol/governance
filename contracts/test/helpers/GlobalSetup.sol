@@ -120,6 +120,11 @@ import {CurveCryptoLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/ora
 import {CurveStableLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/curve/CurveStableLPPriceFeed.sol";
 import {ERC4626PriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/erc4626/ERC4626PriceFeed.sol";
 
+import {PriceFeedCompressor} from "@gearbox-protocol/oracles-v3/contracts/oracles/updatable/PriceFeedCompressor.sol";
+import {TokenCompressor} from "@gearbox-protocol/oracles-v3/contracts/oracles/updatable/TokenCompressor.sol";
+import {MarketConfiguratorCompressor} from
+    "@gearbox-protocol/oracles-v3/contracts/oracles/updatable/MarketConfiguratorCompressor.sol";
+
 import {console} from "forge-std/console.sol";
 
 struct UploadableContract {
@@ -693,6 +698,32 @@ contract GlobalSetup is Test, InstanceManagerHelper {
             UploadableContract({
                 initCode: type(ERC4626PriceFeed).creationCode,
                 contractType: "PRICE_FEED::ERC4626",
+                version: 3_10
+            })
+        );
+    }
+
+    function _setPeripheryContracts() internal {
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(CreditAccountCompressor).creationCode,
+                contractType: "CREDIT_ACCOUNT_COMPRESSOR",
+                version: 3_10
+            })
+        );
+
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(PriceFeedCompressor).creationCode,
+                contractType: "PRICE_FEED_COMPRESSOR",
+                version: 3_10
+            })
+        );
+
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(CreditAccountCompressor).creationCode,
+                contractType: "MARKET_COMPRESSOR",
                 version: 3_10
             })
         );
