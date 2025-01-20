@@ -10,9 +10,8 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {MockedVersionContract} from "../mocks/MockedVersionContract.sol";
-import {SignatureHelper} from "../helpers/SignatureHelper.sol";
 
-contract BytecodeRepositoryTest is Test, SignatureHelper {
+contract BytecodeRepositoryTest is Test {
     using LibString for bytes32;
     using ECDSA for bytes32;
 
@@ -21,8 +20,9 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
     address public auditor;
     address public author;
 
-    uint256 public auditorPK = _generatePrivateKey("AUDITOR");
-    uint256 public authorPK = _generatePrivateKey("AUTHOR");
+    uint256 public auditorPK = vm.randomUint();
+
+    uint256 public authorPK = vm.randomUint();
 
     bytes32 private constant _TEST_CONTRACT = "TEST_CONTRACT";
     uint256 private constant _TEST_VERSION = 310;

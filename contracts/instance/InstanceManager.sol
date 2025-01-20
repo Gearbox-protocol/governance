@@ -159,8 +159,4 @@ contract InstanceManager is Ownable, IInstanceManager {
     function _setAddress(bytes32 key, address value, bool saveVersion) internal {
         IAddressProvider(addressProvider).setAddress(key, value, saveVersion);
     }
-
-    function owner() public view override(Ownable, IInstanceManager) returns (address) {
-        return super.owner();
-    }
 }
