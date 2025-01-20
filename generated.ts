@@ -1568,6 +1568,20 @@ export const iPriceFeedStoreAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'getKnownPriceFeeds',
+    outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getKnownTokens',
+    outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
     name: 'getPriceFeeds',
     outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
@@ -1578,6 +1592,23 @@ export const iPriceFeedStoreAbi = [
     inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
     name: 'getStalenessPeriod',
     outputs: [{ name: '', internalType: 'uint32', type: 'uint32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getTokenPriceFeedsMap',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct ConnectedPriceFeed[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'priceFeeds', internalType: 'address[]', type: 'address[]' },
+        ],
+      },
+    ],
     stateMutability: 'view',
   },
   {
