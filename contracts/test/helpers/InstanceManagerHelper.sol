@@ -18,6 +18,7 @@ import {CrossChainCall} from "../../../contracts/interfaces/ICrossChainMultisig.
 import {IBytecodeRepository} from "../../../contracts/interfaces/IBytecodeRepository.sol";
 import {IPriceFeedStore} from "../../../contracts/interfaces/IPriceFeedStore.sol";
 import {IAddressProvider} from "../../../contracts/interfaces/IAddressProvider.sol";
+import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
 contract InstanceManagerHelper is BCRHelpers, CCGHelper {
     // Core contracts
@@ -30,13 +31,32 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
 
     function _setUpInstanceManager() internal {
         _setUpCCG();
-        _setUpBCR();
 
         // Generate random private keys and derive addresses
 
         // Deploy InstanceManager owned by multisig
-        instanceManager = new InstanceManager(address(multisig));
+        instanceManager = new InstanceManager{salt: bytes32("SALT")}(address(multisig));
         bytecodeRepository = instanceManager.bytecodeRepository();
+    }
+
+    function _attachInstanceManager() internal {
+        _attachCCG();
+        address instanceManagerAddress = computeInstanceManagerAddress();
+
+        if (instanceManagerAddress.code.length == 0) {
+            revert("InstanceManager not deployed");
+        }
+
+        instanceManager = InstanceManager(instanceManagerAddress);
+        bytecodeRepository = instanceManager.bytecodeRepository();
+    }
+
+    function computeInstanceManagerAddress() internal view returns (address) {
+        bytes memory creationCode = abi.encodePacked(type(InstanceManager).creationCode, abi.encode(multisig));
+
+        return Create2.computeAddress(
+            bytes32("SALT"), keccak256(creationCode), address(0x4e59b44847b379578588920cA78FbF26c0B4956C)
+        );
     }
 
     function _generateAddAuditorCall(address _auditor, string memory _name)

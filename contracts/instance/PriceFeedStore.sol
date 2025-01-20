@@ -9,7 +9,7 @@ import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/Sanit
 import {PriceFeedValidationTrait} from "@gearbox-protocol/core-v3/contracts/traits/PriceFeedValidationTrait.sol";
 import {IPriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeed.sol";
 
-import {IPriceFeedStore} from "../interfaces/IPriceFeedStore.sol";
+import {IPriceFeedStore, ConnectedPriceFeed} from "../interfaces/IPriceFeedStore.sol";
 import {AP_PRICE_FEED_STORE, AP_INSTANCE_MANAGER_PROXY, NO_VERSION_CONTROL} from "../libraries/ContractLiterals.sol";
 import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
 import {PriceFeedInfo} from "../interfaces/Types.sol";
@@ -52,7 +52,7 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
     {}
 
     /// @notice Returns the list of price feeds available for a token
-    function getPriceFeeds(address token) external view returns (address[] memory) {
+    function getPriceFeeds(address token) public view returns (address[] memory) {
         return _allowedPriceFeeds[token].values();
     }
 
@@ -74,6 +74,18 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
 
     function getKnownTokens() external view returns (address[] memory) {
         return _knownTokens.values();
+    }
+
+    function getTokenPriceFeedsMap() external view returns (ConnectedPriceFeed[] memory) {
+        address[] memory tokens = _knownTokens.values();
+        ConnectedPriceFeed[] memory connectedPriceFeeds = new ConnectedPriceFeed[](tokens.length);
+
+        uint256 len = tokens.length;
+        for (uint256 i = 0; i < len; ++i) {
+            connectedPriceFeeds[i].token = tokens[i];
+            connectedPriceFeeds[i].priceFeeds = getPriceFeeds(tokens[i]);
+        }
+        return connectedPriceFeeds;
     }
 
     function getKnownPriceFeeds() external view returns (address[] memory) {
