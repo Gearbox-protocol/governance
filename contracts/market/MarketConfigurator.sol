@@ -304,11 +304,15 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         bytes calldata encodedParams
     ) external view override returns (address) {
         address factory = _getLatestCreditFactory(minorVersion);
-        address priceOracle = IContractsRegister(contractsRegister).getPriceOracle(pool);
-        if (priceOracle == address(0)) {
+        address priceOracle;
+
+        try IContractsRegister(contractsRegister).getPriceOracle(pool) returns (address priceOracle_) {
+            priceOracle = priceOracle_;
+        } catch {
             MarketFactories memory factories = _getLatestMarketFactories(minorVersion);
             priceOracle = IPriceOracleFactory(factories.priceOracleFactory).previewDeployPriceOracle(pool);
         }
+
         return ICreditFactory(factory).computeCreditManagerAddress(
             address(this), pool, underlying, priceOracle, encodedParams
         );
