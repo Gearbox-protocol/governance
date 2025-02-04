@@ -174,7 +174,6 @@ interface IMarketConfigurator is IVersion, IDeployerTrait {
         uint256 minorVersion,
         address pool,
         address underlying,
-        address priceOracle,
         bytes calldata encodedParams
     ) external view returns (address creditManager);
 

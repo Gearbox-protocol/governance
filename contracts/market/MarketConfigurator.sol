@@ -217,7 +217,7 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         external
         view
         override
-        returns (address)
+        returns (address pool)
     {
         MarketFactories memory factories = _getLatestMarketFactories(minorVersion);
         return IPoolFactory(factories.poolFactory).computePoolAddress(address(this), underlying, name, symbol);
@@ -301,10 +301,14 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         uint256 minorVersion,
         address pool,
         address underlying,
-        address priceOracle,
         bytes calldata encodedParams
     ) external view override returns (address) {
         address factory = _getLatestCreditFactory(minorVersion);
+        address priceOracle = IContractsRegister(contractsRegister).getPriceOracle(pool);
+        if (priceOracle == address(0)) {
+            MarketFactories memory factories = _getLatestMarketFactories(minorVersion);
+            priceOracle = IPriceOracleFactory(factories.priceOracleFactory).previewDeployPriceOracle(pool);
+        }
         return ICreditFactory(factory).computeCreditManagerAddress(
             address(this), pool, underlying, priceOracle, encodedParams
         );

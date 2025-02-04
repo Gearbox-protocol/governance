@@ -8,4 +8,5 @@ import {IMarketFactory} from "./IMarketFactory.sol";
 
 interface IPriceOracleFactory is IMarketFactory {
     function deployPriceOracle(address pool) external returns (DeployResult memory);
+    function previewDeployPriceOracle(address pool) external view returns (address);
 }

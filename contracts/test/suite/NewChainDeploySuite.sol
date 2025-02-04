@@ -182,7 +182,11 @@ contract NewChainDeploySuite is Test, GlobalSetup {
 
         bytes memory creditSuiteParams = abi.encode(creditManagerParams, facadeParams);
 
+        address cmExpected = MarketConfigurator(mc).previewCreateCreditSuite(3_10, pool, WETH, creditSuiteParams);
+
         address cm = MarketConfigurator(mc).createCreditSuite(3_10, pool, creditSuiteParams);
+
+        assertEq(cm, cmExpected);
 
         address balancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
 

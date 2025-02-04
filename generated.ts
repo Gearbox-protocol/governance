@@ -2386,7 +2386,6 @@ export const iMarketConfiguratorAbi = [
       { name: 'minorVersion', internalType: 'uint256', type: 'uint256' },
       { name: 'pool', internalType: 'address', type: 'address' },
       { name: 'underlying', internalType: 'address', type: 'address' },
-      { name: 'priceOracle', internalType: 'address', type: 'address' },
       { name: 'encodedParams', internalType: 'bytes', type: 'bytes' },
     ],
     name: 'previewCreateCreditSuite',

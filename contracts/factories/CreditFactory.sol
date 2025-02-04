@@ -301,7 +301,7 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         address accountFactory,
         address priceOracle,
         CreditManagerParams memory params
-    ) internal view returns (bytes memory) {
+    ) internal pure returns (bytes memory) {
         return abi.encode(
             pool,
             accountFactory,
