@@ -301,10 +301,13 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         uint256 minorVersion,
         address pool,
         address underlying,
+        address priceOracle,
         bytes calldata encodedParams
     ) external view override returns (address) {
         address factory = _getLatestCreditFactory(minorVersion);
-        return ICreditFactory(factory).computeCreditManagerAddress(address(this), pool, underlying, encodedParams);
+        return ICreditFactory(factory).computeCreditManagerAddress(
+            address(this), pool, underlying, priceOracle, encodedParams
+        );
     }
 
     function previewCreateCreditSuite(uint256 minorVersion, address pool, bytes calldata encodedParams)
@@ -314,8 +317,9 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         returns (address)
     {
         address factory = _getLatestCreditFactory(minorVersion);
+        address priceOracle = IContractsRegister(contractsRegister).getPriceOracle(pool);
         return ICreditFactory(factory).computeCreditManagerAddress(
-            address(this), pool, IPoolV3(pool).asset(), encodedParams
+            address(this), pool, IPoolV3(pool).asset(), priceOracle, encodedParams
         );
     }
 

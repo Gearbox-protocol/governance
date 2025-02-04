@@ -19,6 +19,7 @@ interface ICreditFactory is IFactory {
         address marketConfigurator,
         address pool,
         address underlying,
+        address priceOracle,
         bytes calldata encodedParams
     ) external view returns (address);
 

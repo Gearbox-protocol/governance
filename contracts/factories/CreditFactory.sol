@@ -107,10 +107,11 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         address marketConfigurator,
         address pool,
         address underlying,
+        address priceOracle,
         bytes calldata encodedParams
     ) external view override returns (address) {
         (CreditManagerParams memory params,) = abi.decode(encodedParams, (CreditManagerParams, CreditFacadeParams));
-        return _computeCreditManagerAddress(marketConfigurator, pool, underlying, params);
+        return _computeCreditManagerAddress(marketConfigurator, pool, underlying, priceOracle, params);
     }
 
     // ------------ //
@@ -262,8 +263,10 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         CreditManagerParams memory params
     ) internal returns (address) {
         bytes32 postfix = _getTokenSpecificPostfix(IPoolV3(pool).asset());
+        address contractsRegister = IMarketConfigurator(marketConfigurator).contractsRegister();
+        address priceOracle = IContractsRegister(contractsRegister).getPriceOracle(pool);
         bytes memory constructorParams =
-            _buildCreditManagerConstructorParams(marketConfigurator, pool, accountFactory, params);
+            _buildCreditManagerConstructorParams(marketConfigurator, pool, accountFactory, priceOracle, params);
         return _deployLatestPatch({
             contractType: _getContractType(DOMAIN_CREDIT_MANAGER, postfix),
             minorVersion: version,
@@ -276,12 +279,13 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         address marketConfigurator,
         address pool,
         address underlying,
+        address priceOracle,
         CreditManagerParams memory params
     ) internal view returns (address) {
         address accountFactory = _computeAccountFactoryAddress(marketConfigurator, params.accountFactoryParams);
         bytes32 postfix = _getTokenSpecificPostfix(underlying);
         bytes memory constructorParams =
-            _buildCreditManagerConstructorParams(marketConfigurator, pool, accountFactory, params);
+            _buildCreditManagerConstructorParams(marketConfigurator, pool, accountFactory, priceOracle, params);
         return _computeAddressLatestPatch({
             contractType: _getContractType(DOMAIN_CREDIT_MANAGER, postfix),
             minorVersion: version,
@@ -295,11 +299,9 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         address marketConfigurator,
         address pool,
         address accountFactory,
+        address priceOracle,
         CreditManagerParams memory params
     ) internal view returns (bytes memory) {
-        address contractsRegister = IMarketConfigurator(marketConfigurator).contractsRegister();
-        address priceOracle = IContractsRegister(contractsRegister).getPriceOracle(pool);
-
         return abi.encode(
             pool,
             accountFactory,
