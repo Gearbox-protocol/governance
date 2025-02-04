@@ -103,14 +103,14 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         });
     }
 
-    function computeCreditManagerAddress(address marketConfigurator, address pool, bytes calldata encodedParams)
-        external
-        view
-        override
-        returns (address)
-    {
+    function computeCreditManagerAddress(
+        address marketConfigurator,
+        address pool,
+        address underlying,
+        bytes calldata encodedParams
+    ) external view override returns (address) {
         (CreditManagerParams memory params,) = abi.decode(encodedParams, (CreditManagerParams, CreditFacadeParams));
-        return _computeCreditManagerAddress(marketConfigurator, pool, params);
+        return _computeCreditManagerAddress(marketConfigurator, pool, underlying, params);
     }
 
     // ------------ //
@@ -272,13 +272,14 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         });
     }
 
-    function _computeCreditManagerAddress(address marketConfigurator, address pool, CreditManagerParams memory params)
-        internal
-        view
-        returns (address)
-    {
+    function _computeCreditManagerAddress(
+        address marketConfigurator,
+        address pool,
+        address underlying,
+        CreditManagerParams memory params
+    ) internal view returns (address) {
         address accountFactory = _computeAccountFactoryAddress(marketConfigurator, params.accountFactoryParams);
-        bytes32 postfix = _getTokenSpecificPostfix(IPoolV3(pool).asset());
+        bytes32 postfix = _getTokenSpecificPostfix(underlying);
         bytes memory constructorParams =
             _buildCreditManagerConstructorParams(marketConfigurator, pool, accountFactory, params);
         return _computeAddressLatestPatch({

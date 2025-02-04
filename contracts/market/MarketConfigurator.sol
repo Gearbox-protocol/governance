@@ -297,6 +297,16 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
     // CREDIT SUITE MANAGEMENT //
     // ----------------------- //
 
+    function previewCreateCreditSuite(
+        uint256 minorVersion,
+        address pool,
+        address underlying,
+        bytes calldata encodedParams
+    ) external view override returns (address) {
+        address factory = _getLatestCreditFactory(minorVersion);
+        return ICreditFactory(factory).computeCreditManagerAddress(address(this), pool, underlying, encodedParams);
+    }
+
     function previewCreateCreditSuite(uint256 minorVersion, address pool, bytes calldata encodedParams)
         external
         view
@@ -304,7 +314,9 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         returns (address)
     {
         address factory = _getLatestCreditFactory(minorVersion);
-        return ICreditFactory(factory).computeCreditManagerAddress(address(this), pool, encodedParams);
+        return ICreditFactory(factory).computeCreditManagerAddress(
+            address(this), pool, IPoolV3(pool).asset(), encodedParams
+        );
     }
 
     function createCreditSuite(uint256 minorVersion, address pool, bytes calldata encodedParams)
