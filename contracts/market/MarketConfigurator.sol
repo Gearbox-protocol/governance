@@ -217,7 +217,7 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         external
         view
         override
-        returns (address pool)
+        returns (address)
     {
         MarketFactories memory factories = _getLatestMarketFactories(minorVersion);
         return IPoolFactory(factories.poolFactory).computePoolAddress(address(this), underlying, name, symbol);
@@ -297,19 +297,37 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
     // CREDIT SUITE MANAGEMENT //
     // ----------------------- //
 
+    function previewCreateCreditSuite(uint256 minorVersion, address pool, bytes calldata encodedParams)
+        external
+        view
+        override
+        returns (address)
+    {
+        address factory = _getLatestCreditFactory(minorVersion);
+        return ICreditFactory(factory).computeCreditManagerAddress(
+            address(this),
+            pool,
+            IPoolV3(pool).asset(),
+            IContractsRegister(contractsRegister).getPriceOracle(pool),
+            encodedParams
+        );
+    }
+
     function previewCreateCreditSuite(
-        uint256 minorVersion,
-        address pool,
+        uint256 marketMinorVersion,
+        uint256 creditSuiteMinorVersion,
         address underlying,
+        string calldata name,
+        string calldata symbol,
         bytes calldata encodedParams
     ) external view override returns (address) {
-        address priceOracle = IContractsRegister(contractsRegister).isPool(pool)
-            ? IContractsRegister(contractsRegister).getPriceOracle(pool)
-            : IPriceOracleFactory(_getLatestMarketFactories(minorVersion).priceOracleFactory).computePriceOracleAddress(
-                address(this), pool
-            );
+        MarketFactories memory factories = _getLatestMarketFactories(marketMinorVersion);
+        address pool = IPoolFactory(factories.poolFactory).computePoolAddress(address(this), underlying, name, symbol);
+        address priceOracle =
+            IPriceOracleFactory(factories.priceOracleFactory).computePriceOracleAddress(address(this), pool);
 
-        return ICreditFactory(_getLatestCreditFactory(minorVersion)).computeCreditManagerAddress(
+        address factory = _getLatestCreditFactory(creditSuiteMinorVersion);
+        return ICreditFactory(factory).computeCreditManagerAddress(
             address(this), pool, underlying, priceOracle, encodedParams
         );
     }
