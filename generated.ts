@@ -2370,9 +2370,28 @@ export const iMarketConfiguratorAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'marketMinorVersion', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'creditSuiteMinorVersion',
+        internalType: 'uint256',
+        type: 'uint256',
+      },
+      { name: 'underlying', internalType: 'address', type: 'address' },
+      { name: 'name', internalType: 'string', type: 'string' },
+      { name: 'symbol', internalType: 'string', type: 'string' },
+      { name: 'encodedParams', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'previewCreateCreditSuite',
+    outputs: [
+      { name: 'creditManager', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
       { name: 'minorVersion', internalType: 'uint256', type: 'uint256' },
       { name: 'pool', internalType: 'address', type: 'address' },
-      { name: 'underlying', internalType: 'address', type: 'address' },
       { name: 'encodedParams', internalType: 'bytes', type: 'bytes' },
     ],
     name: 'previewCreateCreditSuite',
