@@ -78,8 +78,13 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
         });
     }
 
-    function previewDeployPriceOracle(address pool) external view override returns (address) {
-        address acl = IMarketConfigurator(msg.sender).acl();
+    function computePriceOracleAddress(address marketConfigurator, address pool)
+        external
+        view
+        override
+        returns (address)
+    {
+        address acl = IMarketConfigurator(marketConfigurator).acl();
         return _computeAddressLatestPatch({
             contractType: AP_PRICE_ORACLE,
             minorVersion: version,

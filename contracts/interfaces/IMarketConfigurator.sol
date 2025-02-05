@@ -165,11 +165,6 @@ interface IMarketConfigurator is IVersion, IDeployerTrait {
     // CREDIT SUITE MANAGEMENT //
     // ----------------------- //
 
-    function previewCreateCreditSuite(uint256 minorVersion, address pool, bytes calldata encodedParams)
-        external
-        view
-        returns (address creditManager);
-
     function previewCreateCreditSuite(
         uint256 minorVersion,
         address pool,

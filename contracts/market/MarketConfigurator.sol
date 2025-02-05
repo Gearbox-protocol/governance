@@ -303,31 +303,14 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         address underlying,
         bytes calldata encodedParams
     ) external view override returns (address) {
-        address factory = _getLatestCreditFactory(minorVersion);
-        address priceOracle;
+        address priceOracle = IContractsRegister(contractsRegister).isPool(pool)
+            ? IContractsRegister(contractsRegister).getPriceOracle(pool)
+            : IPriceOracleFactory(_getLatestMarketFactories(minorVersion).priceOracleFactory).computePriceOracleAddress(
+                address(this), pool
+            );
 
-        try IContractsRegister(contractsRegister).getPriceOracle(pool) returns (address priceOracle_) {
-            priceOracle = priceOracle_;
-        } catch {
-            MarketFactories memory factories = _getLatestMarketFactories(minorVersion);
-            priceOracle = IPriceOracleFactory(factories.priceOracleFactory).previewDeployPriceOracle(pool);
-        }
-
-        return ICreditFactory(factory).computeCreditManagerAddress(
+        return ICreditFactory(_getLatestCreditFactory(minorVersion)).computeCreditManagerAddress(
             address(this), pool, underlying, priceOracle, encodedParams
-        );
-    }
-
-    function previewCreateCreditSuite(uint256 minorVersion, address pool, bytes calldata encodedParams)
-        external
-        view
-        override
-        returns (address)
-    {
-        address factory = _getLatestCreditFactory(minorVersion);
-        address priceOracle = IContractsRegister(contractsRegister).getPriceOracle(pool);
-        return ICreditFactory(factory).computeCreditManagerAddress(
-            address(this), pool, IPoolV3(pool).asset(), priceOracle, encodedParams
         );
     }
 
