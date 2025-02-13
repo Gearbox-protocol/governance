@@ -74,7 +74,7 @@ contract MockMultipleUnderlyingPriceFeed is MockPriceFeed {
     address[] public priceFeeds;
 
     constructor(address[] memory priceFeeds_) {
-        require(priceFeeds_.length <= NestedPriceFeeds.MAX_UNDERLYING_PRICE_FEEDS, "Too many feeds");
+        require(priceFeeds_.length <= 8, "Too many feeds");
 
         bool seenZero;
         for (uint256 i = 0; i < priceFeeds_.length; ++i) {
