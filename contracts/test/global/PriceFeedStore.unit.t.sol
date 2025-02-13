@@ -73,7 +73,7 @@ contract PriceFeedStoreTest is Test {
 
         // Verify all parameters were set correctly
         assertEq(priceFeedInfo.author, owner);
-        assertEq(priceFeedInfo.priceFeedType, "MOCK_PRICE_FEED");
+        assertEq(priceFeedInfo.priceFeedType, "PRICE_FEED::MOCK");
         assertEq(priceFeedInfo.stalenessPeriod, stalenessPeriod);
         assertEq(priceFeedInfo.version, 1);
         assertEq(priceFeedInfo.name, name);
