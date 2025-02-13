@@ -4,6 +4,7 @@
 pragma solidity ^0.8.23;
 
 import {IPriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeed.sol";
+import {OptionalCall} from "@gearbox-protocol/core-v3/contracts/libraries/OptionalCall.sol";
 
 interface NestedPriceFeedWithSingleUnderlying is IPriceFeed {
     function priceFeed() external view returns (address);
@@ -21,6 +22,8 @@ interface NestedPriceFeedWithMultipleUnderlyings is IPriceFeed {
 }
 
 library NestedPriceFeeds {
+    using OptionalCall for address;
+
     uint256 constant MAX_UNDERLYING_PRICE_FEEDS = 8;
 
     enum NestingType {
@@ -39,13 +42,11 @@ library NestedPriceFeeds {
     }
 
     function getNestingType(IPriceFeed priceFeed) internal view returns (NestingType) {
-        try NestedPriceFeedWithSingleUnderlying(address(priceFeed)).priceFeed() returns (address) {
-            return NestingType.SINGLE_UNDERLYING;
-        } catch {}
+        (bool success,) = address(priceFeed).staticCallOptionalSafe(abi.encodeWithSignature("priceFeed()"), 10000);
+        if (success) return NestingType.SINGLE_UNDERLYING;
 
-        try NestedPriceFeedWithMultipleUnderlyings(address(priceFeed)).priceFeed0() returns (address) {
-            return NestingType.MULTIPLE_UNDERLYING;
-        } catch {}
+        (success,) = address(priceFeed).staticCallOptionalSafe(abi.encodeWithSignature("priceFeed0()"), 10000);
+        if (success) return NestingType.MULTIPLE_UNDERLYING;
 
         return NestingType.NO_NESTING;
     }
@@ -99,7 +100,8 @@ library NestedPriceFeeds {
         } else if (index == 7) {
             selector = priceFeed.priceFeed7.selector;
         }
-        (bool success, bytes memory result) = address(priceFeed).staticcall(abi.encodePacked(selector));
+        (bool success, bytes memory result) =
+            address(priceFeed).staticCallOptionalSafe(abi.encodePacked(selector), 10000);
         if (!success || result.length == 0) return address(0);
         return abi.decode(result, (address));
     }

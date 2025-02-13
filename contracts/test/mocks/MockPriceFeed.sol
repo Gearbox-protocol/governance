@@ -6,7 +6,7 @@ import {IPriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IP
 contract MockPriceFeed is IPriceFeed {
     uint256 private _lastUpdateTime;
     int256 private _price;
-    bytes32 private constant _CONTRACT_TYPE = "MOCK_PRICE_FEED";
+    bytes32 private constant _CONTRACT_TYPE = "PRICE_FEED::MOCK";
     uint256 private constant _VERSION = 1;
 
     constructor() {
@@ -55,5 +55,70 @@ contract MockPriceFeed is IPriceFeed {
 
     function skipPriceCheck() external pure returns (bool) {
         return false;
+    }
+}
+
+contract MockFallbackPriceFeed is MockPriceFeed {
+    fallback() external {}
+}
+
+contract MockSingleUnderlyingPriceFeed is MockPriceFeed {
+    address public immutable priceFeed;
+
+    constructor(address _priceFeed) {
+        priceFeed = _priceFeed;
+    }
+}
+
+contract MockMultipleUnderlyingPriceFeed is MockPriceFeed {
+    address[] public priceFeeds;
+
+    constructor(address[] memory priceFeeds_) {
+        require(priceFeeds_.length <= NestedPriceFeeds.MAX_UNDERLYING_PRICE_FEEDS, "Too many feeds");
+
+        bool seenZero;
+        for (uint256 i = 0; i < priceFeeds_.length; ++i) {
+            if (priceFeeds_[i] == address(0)) seenZero = true;
+            else require(!seenZero, "Non-zero feed after zero");
+        }
+
+        priceFeeds = priceFeeds_;
+    }
+
+    function _getPriceFeed(uint256 index) internal view returns (address) {
+        if (index >= priceFeeds.length) revert("Not implemented");
+        return priceFeeds[index];
+    }
+
+    function priceFeed0() external view returns (address) {
+        return _getPriceFeed(0);
+    }
+
+    function priceFeed1() external view returns (address) {
+        return _getPriceFeed(1);
+    }
+
+    function priceFeed2() external view returns (address) {
+        return _getPriceFeed(2);
+    }
+
+    function priceFeed3() external view returns (address) {
+        return _getPriceFeed(3);
+    }
+
+    function priceFeed4() external view returns (address) {
+        return _getPriceFeed(4);
+    }
+
+    function priceFeed5() external view returns (address) {
+        return _getPriceFeed(5);
+    }
+
+    function priceFeed6() external view returns (address) {
+        return _getPriceFeed(6);
+    }
+
+    function priceFeed7() external view returns (address) {
+        return _getPriceFeed(7);
     }
 }
