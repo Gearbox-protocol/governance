@@ -62,6 +62,15 @@ contract MockFallbackPriceFeed is MockPriceFeed {
     fallback() external {}
 }
 
+contract MockUpdatablePriceFeed is MockPriceFeed {
+    bytes public lastUpdateData;
+    bool public constant updatable = true;
+
+    function updatePrice(bytes calldata data) external {
+        lastUpdateData = data;
+    }
+}
+
 contract MockSingleUnderlyingPriceFeed is MockPriceFeed {
     address public immutable priceFeed;
 

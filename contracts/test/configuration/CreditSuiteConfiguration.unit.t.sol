@@ -321,6 +321,7 @@ contract CreditSuiteConfigurationUnitTest is ConfigurationTestHelper {
             "CREDIT_FACADE",
             3_10,
             abi.encode(
+                addressProvider,
                 address(creditManager),
                 lossPolicy,
                 ICreditFacadeV3(oldFacade).botList(),

@@ -10,7 +10,7 @@ export default defineConfig({
         "AddressProvider.sol/AddressProvider.json",
         "IBytecodeRepository.sol/**.json",
         "ICrossChainMultisig.sol/**.json",
-        "IPriceFeedStore.sol/**.json",
+        "PriceFeedStore.sol/**.json",
         "IInstanceManager.sol/**.json",
         "IMarketConfiguratorFactory.sol/**.json",
         "IMarketConfigurator.sol/**.json",

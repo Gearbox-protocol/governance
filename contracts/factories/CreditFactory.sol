@@ -334,7 +334,7 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
         address weth = _tryGetAddress(AP_WETH_TOKEN, NO_VERSION_CONTROL);
 
         bytes memory constructorParams =
-            abi.encode(creditManager, lossPolicy, botList_, weth, params.degenNFT, params.expirable);
+            abi.encode(addressProvider, creditManager, lossPolicy, botList_, weth, params.degenNFT, params.expirable);
 
         return _deployLatestPatch({
             contractType: AP_CREDIT_FACADE,

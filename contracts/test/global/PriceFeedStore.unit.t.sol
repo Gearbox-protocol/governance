@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import {PriceFeedInfo} from "../../interfaces/Types.sol";
+import {PriceFeedInfo, PriceUpdate} from "../../interfaces/Types.sol";
 
 import {Test} from "forge-std/Test.sol";
 import {PriceFeedStore} from "../../instance/PriceFeedStore.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
 import {IPriceFeedStore} from "../../interfaces/IPriceFeedStore.sol";
 import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
-import {MockPriceFeed} from "../mocks/MockPriceFeed.sol";
+import {
+    MockPriceFeed,
+    MockSingleUnderlyingPriceFeed,
+    MockMultipleUnderlyingPriceFeed,
+    MockUpdatablePriceFeed
+} from "../mocks/MockPriceFeed.sol";
 import {
     AP_BYTECODE_REPOSITORY, AP_INSTANCE_MANAGER_PROXY, NO_VERSION_CONTROL
 } from "../../libraries/ContractLiterals.sol";
-import {ImmutableOwnableTrait} from "../../traits/ImmutableOwnableTrait.sol";
 import {
     ZeroAddressException,
     StalePriceException,
@@ -32,6 +36,8 @@ contract PriceFeedStoreTest is Test {
         owner = makeAddr("owner");
         token = makeAddr("token");
         priceFeed = new MockPriceFeed();
+        addressProvider = IAddressProvider(makeAddr("addressProvider"));
+        bytecodeRepository = IBytecodeRepository(makeAddr("bytecodeRepository"));
 
         vm.mockCall(
             address(addressProvider),
@@ -47,13 +53,20 @@ contract PriceFeedStoreTest is Test {
             abi.encode(address(bytecodeRepository))
         );
 
-        store = new PriceFeedStore(address(addressProvider));
+        vm.mockCall(address(bytecodeRepository), abi.encodeWithSignature("deployedContracts(address)"), abi.encode(0));
 
+        store = new PriceFeedStore(address(addressProvider));
+        _markAsInternalPriceFeed(address(priceFeed));
+    }
+
+    function _markAsInternalPriceFeed(address target) internal {
         vm.mockCall(
             address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", address(priceFeed)),
-            abi.encode(uint256(42))
+            abi.encodeWithSignature("deployedContracts(address)", target),
+            abi.encode(keccak256(abi.encodePacked(target)))
         );
+
+        vm.mockCall(address(target), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
     }
 
     /// @notice Test basic price feed addition flow
@@ -69,7 +82,6 @@ contract PriceFeedStoreTest is Test {
 
         // Get price feed info
         PriceFeedInfo memory priceFeedInfo = store.priceFeedInfo(address(priceFeed));
-        store.priceFeedInfo(address(priceFeed));
 
         // Verify all parameters were set correctly
         assertEq(priceFeedInfo.author, owner);
@@ -213,11 +225,7 @@ contract PriceFeedStoreTest is Test {
     /// @notice Test multiple price feeds per token
     function test_PFS_14_allows_multiple_feeds_per_token() public {
         MockPriceFeed priceFeed2 = new MockPriceFeed();
-        vm.mockCall(
-            address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", address(priceFeed2)),
-            abi.encode(uint256(43))
-        );
+        _markAsInternalPriceFeed(address(priceFeed2));
 
         vm.startPrank(owner);
         store.addPriceFeed(address(priceFeed), 3600, "ETH/USD Primary");
@@ -230,5 +238,285 @@ contract PriceFeedStoreTest is Test {
         assertEq(feeds.length, 2);
         assertTrue(store.isAllowedPriceFeed(token, address(priceFeed)));
         assertTrue(store.isAllowedPriceFeed(token, address(priceFeed2)));
+    }
+
+    /// @notice Test handles updatable price feeds
+    function test_PFS_15_handles_updatable_price_feeds() public {
+        MockUpdatablePriceFeed updatableFeed = new MockUpdatablePriceFeed();
+        _markAsInternalPriceFeed(address(updatableFeed));
+
+        vm.startPrank(owner);
+
+        // Expect AddUpdatablePriceFeed event
+        vm.expectEmit(true, false, false, false);
+        emit IPriceFeedStore.AddUpdatablePriceFeed(address(updatableFeed));
+
+        store.addPriceFeed(address(updatableFeed), 3600, "ETH/USD Updatable");
+
+        // Check it was added to updatable feeds list
+        address[] memory updatableFeeds = store.getUpdatablePriceFeeds();
+        assertEq(updatableFeeds.length, 1);
+        assertEq(updatableFeeds[0], address(updatableFeed));
+
+        // Test price updates
+        bytes memory updateData = abi.encode(1234);
+        PriceUpdate[] memory updates = new PriceUpdate[](1);
+        updates[0] = PriceUpdate({priceFeed: address(updatableFeed), data: updateData});
+        store.updatePrices(updates);
+
+        // Test non-updatable feed
+        MockPriceFeed nonUpdatableFeed = new MockPriceFeed();
+        _markAsInternalPriceFeed(address(nonUpdatableFeed));
+        store.addPriceFeed(address(nonUpdatableFeed), 3600, "ETH/USD Non-updatable");
+
+        // Verify only updatable feed is in the list
+        updatableFeeds = store.getUpdatablePriceFeeds();
+        assertEq(updatableFeeds.length, 1);
+        assertEq(updatableFeeds[0], address(updatableFeed));
+
+        // Try to update non-updatable feed
+        updates[0] = PriceUpdate({priceFeed: address(nonUpdatableFeed), data: updateData});
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotUpdatableException.selector, address(nonUpdatableFeed))
+        );
+        store.updatePrices(updates);
+
+        // Verify update was processed
+        assertEq(updatableFeed.lastUpdateData(), updateData);
+        vm.stopPrank();
+    }
+
+    function test_PFS_16_validates_nested_price_feeds() public {
+        // Create a tree of price feeds:
+        // root (multiple underlying)
+        // ├── child1 (single underlying)
+        // │   └── leaf1
+        // └── child2 (multiple underlying)
+        //     ├── leaf2
+        //     └── leaf3 (updatable)
+
+        MockPriceFeed leaf1 = new MockPriceFeed();
+        MockPriceFeed leaf2 = new MockPriceFeed();
+        MockUpdatablePriceFeed leaf3 = new MockUpdatablePriceFeed();
+
+        // Mock all as internal feeds
+        _markAsInternalPriceFeed(address(leaf1));
+        _markAsInternalPriceFeed(address(leaf2));
+        _markAsInternalPriceFeed(address(leaf3));
+
+        MockSingleUnderlyingPriceFeed child1 = new MockSingleUnderlyingPriceFeed(address(leaf1));
+        address[] memory child2Feeds = new address[](2);
+        child2Feeds[0] = address(leaf2);
+        child2Feeds[1] = address(leaf3);
+        MockMultipleUnderlyingPriceFeed child2 = new MockMultipleUnderlyingPriceFeed(child2Feeds);
+
+        _markAsInternalPriceFeed(address(child1));
+        _markAsInternalPriceFeed(address(child2));
+
+        address[] memory rootFeeds = new address[](2);
+        rootFeeds[0] = address(child1);
+        rootFeeds[1] = address(child2);
+        MockMultipleUnderlyingPriceFeed root = new MockMultipleUnderlyingPriceFeed(rootFeeds);
+
+        _markAsInternalPriceFeed(address(root));
+
+        vm.startPrank(owner);
+
+        // Expect AddUpdatablePriceFeed event for leaf3
+        vm.expectEmit(true, false, false, false);
+        emit IPriceFeedStore.AddUpdatablePriceFeed(address(leaf3));
+
+        store.addPriceFeed(address(root), 3600, "Root Feed");
+
+        // Verify updatable feeds were detected
+        address[] memory updatableFeeds = store.getUpdatablePriceFeeds();
+        assertEq(updatableFeeds.length, 1, "Wrong number of updatable feeds");
+        assertEq(updatableFeeds[0], address(leaf3), "Wrong updatable feed");
+
+        vm.stopPrank();
+    }
+
+    function test_PFS_17_handles_external_feeds_in_tree() public {
+        // Create a tree with mix of internal and external feeds:
+        // root (multiple underlying)
+        // ├── external1
+        // └── child (single underlying)
+        //     └── external2
+
+        address external1 = makeAddr("external1");
+        address external2 = makeAddr("external2");
+
+        MockSingleUnderlyingPriceFeed child = new MockSingleUnderlyingPriceFeed(external2);
+        _markAsInternalPriceFeed(address(child));
+
+        address[] memory rootFeeds = new address[](2);
+        rootFeeds[0] = external1;
+        rootFeeds[1] = address(child);
+        MockMultipleUnderlyingPriceFeed root = new MockMultipleUnderlyingPriceFeed(rootFeeds);
+        _markAsInternalPriceFeed(address(root));
+
+        // These calls should never happen
+        vm.expectCall(address(external1), abi.encodeWithSignature("owner()"), 0);
+        vm.expectCall(address(external2), abi.encodeWithSignature("owner()"), 0);
+
+        vm.startPrank(owner);
+        store.addPriceFeed(address(root), 3600, "Root Feed");
+        vm.stopPrank();
+    }
+
+    function test_PFS_18_handles_complex_nesting() public {
+        // Create a complex tree:
+        // root (multiple underlying)
+        // ├── branch1 (multiple underlying)
+        // │   ├── leaf1 (updatable)
+        // │   └── branch2 (single underlying)
+        // │       └── leaf2
+        // └── branch3 (single underlying)
+        //     └── leaf3 (updatable)
+
+        // Create leaf nodes
+        MockUpdatablePriceFeed leaf1 = new MockUpdatablePriceFeed();
+        MockPriceFeed leaf2 = new MockPriceFeed();
+        MockUpdatablePriceFeed leaf3 = new MockUpdatablePriceFeed();
+
+        // Mock all as internal feeds
+        _markAsInternalPriceFeed(address(leaf1));
+        _markAsInternalPriceFeed(address(leaf2));
+        _markAsInternalPriceFeed(address(leaf3));
+
+        // Create branch2 (single underlying -> leaf2)
+        MockSingleUnderlyingPriceFeed branch2 = new MockSingleUnderlyingPriceFeed(address(leaf2));
+        _markAsInternalPriceFeed(address(branch2));
+
+        // Create branch1 (multiple underlying -> [leaf1, branch2])
+        address[] memory branch1Feeds = new address[](2);
+        branch1Feeds[0] = address(leaf1);
+        branch1Feeds[1] = address(branch2);
+        MockMultipleUnderlyingPriceFeed branch1 = new MockMultipleUnderlyingPriceFeed(branch1Feeds);
+        _markAsInternalPriceFeed(address(branch1));
+
+        // Create branch3 (single underlying -> leaf3)
+        MockSingleUnderlyingPriceFeed branch3 = new MockSingleUnderlyingPriceFeed(address(leaf3));
+        _markAsInternalPriceFeed(address(branch3));
+
+        // Create root (multiple underlying -> [branch1, branch3])
+        address[] memory rootFeeds = new address[](2);
+        rootFeeds[0] = address(branch1);
+        rootFeeds[1] = address(branch3);
+        MockMultipleUnderlyingPriceFeed root = new MockMultipleUnderlyingPriceFeed(rootFeeds);
+        _markAsInternalPriceFeed(address(root));
+
+        vm.startPrank(owner);
+
+        // Expect AddUpdatablePriceFeed events
+        vm.expectEmit(true, false, false, false);
+        emit IPriceFeedStore.AddUpdatablePriceFeed(address(leaf1));
+        vm.expectEmit(true, false, false, false);
+        emit IPriceFeedStore.AddUpdatablePriceFeed(address(leaf3));
+
+        store.addPriceFeed(address(root), 3600, "Complex Root");
+
+        // Verify updatable feeds were detected
+        address[] memory updatableFeeds = store.getUpdatablePriceFeeds();
+        assertEq(updatableFeeds.length, 2, "Wrong number of updatable feeds");
+        assertTrue(
+            (updatableFeeds[0] == address(leaf1) && updatableFeeds[1] == address(leaf3))
+                || (updatableFeeds[0] == address(leaf3) && updatableFeeds[1] == address(leaf1)),
+            "Wrong updatable feeds"
+        );
+
+        // Test updating both feeds
+        bytes memory updateData1 = abi.encode(1234);
+        bytes memory updateData3 = abi.encode(5678);
+        PriceUpdate[] memory updates = new PriceUpdate[](2);
+        updates[0] = PriceUpdate({priceFeed: address(leaf1), data: updateData1});
+        updates[1] = PriceUpdate({priceFeed: address(leaf3), data: updateData3});
+        store.updatePrices(updates);
+
+        // Verify updates were processed
+        assertEq(leaf1.lastUpdateData(), updateData1, "Leaf1 not updated");
+        assertEq(leaf3.lastUpdateData(), updateData3, "Leaf3 not updated");
+        vm.stopPrank();
+    }
+
+    function test_PFS_19_handles_external_feed() public {
+        MockPriceFeed externalFeed = new MockPriceFeed();
+
+        vm.startPrank(owner);
+        store.addPriceFeed(address(externalFeed), 3600, "External Feed");
+
+        // Verify feed was added with correct metadata
+        PriceFeedInfo memory info = store.priceFeedInfo(address(externalFeed));
+        assertEq(info.priceFeedType, "PRICE_FEED::EXTERNAL");
+        assertEq(info.version, 0);
+        assertEq(info.stalenessPeriod, 3600);
+        assertEq(info.name, "External Feed");
+        assertEq(info.author, owner);
+
+        // Verify no ownership check was performed
+        vm.expectCall(address(externalFeed), abi.encodeWithSignature("owner()"), 0);
+        vm.stopPrank();
+    }
+
+    function test_PFS_20_validates_different_ownership_types() public {
+        // Test non-ownable feed (should pass)
+        MockPriceFeed nonOwnableFeed = new MockPriceFeed();
+        vm.mockCall(
+            address(bytecodeRepository),
+            abi.encodeWithSignature("deployedContracts(address)", address(nonOwnableFeed)),
+            abi.encode(keccak256(abi.encodePacked(address(nonOwnableFeed))))
+        );
+
+        // Test Ownable feed owned by store (should pass)
+        MockPriceFeed ownableFeed = new MockPriceFeed();
+        vm.mockCall(
+            address(bytecodeRepository),
+            abi.encodeWithSignature("deployedContracts(address)", address(ownableFeed)),
+            abi.encode(keccak256(abi.encodePacked(address(ownableFeed))))
+        );
+        vm.mockCall(address(ownableFeed), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
+
+        // Test Ownable feed owned by other (should fail)
+        MockPriceFeed wrongOwnerFeed = new MockPriceFeed();
+        vm.mockCall(
+            address(bytecodeRepository),
+            abi.encodeWithSignature("deployedContracts(address)", address(wrongOwnerFeed)),
+            abi.encode(keccak256(abi.encodePacked(address(wrongOwnerFeed))))
+        );
+        vm.mockCall(address(wrongOwnerFeed), abi.encodeWithSignature("owner()"), abi.encode(makeAddr("other")));
+
+        // Test Ownable2Step feed with pending transfer (should fail)
+        MockPriceFeed ownable2StepFeed = new MockPriceFeed();
+        vm.mockCall(
+            address(bytecodeRepository),
+            abi.encodeWithSignature("deployedContracts(address)", address(ownable2StepFeed)),
+            abi.encode(keccak256(abi.encodePacked(address(ownable2StepFeed))))
+        );
+        vm.mockCall(address(ownable2StepFeed), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
+        vm.mockCall(
+            address(ownable2StepFeed), abi.encodeWithSignature("pendingOwner()"), abi.encode(makeAddr("pending"))
+        );
+
+        vm.startPrank(owner);
+
+        // Non-ownable should pass
+        store.addPriceFeed(address(nonOwnableFeed), 3600, "Non-ownable Feed");
+
+        // Correctly owned should pass
+        store.addPriceFeed(address(ownableFeed), 3600, "Ownable Feed");
+
+        // Wrong owner should fail
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotOwnedByStore.selector, address(wrongOwnerFeed))
+        );
+        store.addPriceFeed(address(wrongOwnerFeed), 3600, "Wrong Owner Feed");
+
+        // Pending transfer should fail
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotOwnedByStore.selector, address(ownable2StepFeed))
+        );
+        store.addPriceFeed(address(ownable2StepFeed), 3600, "Ownable2Step Feed");
+
+        vm.stopPrank();
     }
 }

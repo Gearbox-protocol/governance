@@ -5,7 +5,7 @@ pragma solidity ^0.8.23;
 
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {IImmutableOwnableTrait} from "./base/IImmutableOwnableTrait.sol";
-import {PriceFeedInfo, ConnectedPriceFeed} from "../interfaces/Types.sol";
+import {PriceFeedInfo, PriceUpdate, ConnectedPriceFeed} from "../interfaces/Types.sol";
 
 interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     //
@@ -24,6 +24,9 @@ interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     /// @notice Thrown when attempting to add a price feed that is not owned by the store
     error PriceFeedIsNotOwnedByStore(address priceFeed);
 
+    /// @notice Thrown when attempting to update a price feed that is not added to the updatable price feeds set
+    error PriceFeedIsNotUpdatableException(address priceFeed);
+
     //
     // EVENTS
     //
@@ -40,6 +43,9 @@ interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     /// @notice Emitted when a price feed is forbidden for a token
     event ForbidPriceFeed(address indexed token, address indexed priceFeed);
 
+    /// @notice Emitted when a price feed is added to the updatable price feeds set
+    event AddUpdatablePriceFeed(address indexed priceFeed);
+
     //
     // GETTERS
     //
@@ -51,6 +57,7 @@ interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     function getKnownTokens() external view returns (address[] memory);
     function getKnownPriceFeeds() external view returns (address[] memory);
     function priceFeedInfo(address priceFeed) external view returns (PriceFeedInfo memory);
+    function getUpdatablePriceFeeds() external view returns (address[] memory);
 
     //
     // CONFIGURATION
@@ -59,4 +66,9 @@ interface IPriceFeedStore is IVersion, IImmutableOwnableTrait {
     function setStalenessPeriod(address priceFeed, uint32 stalenessPeriod) external;
     function allowPriceFeed(address token, address priceFeed) external;
     function forbidPriceFeed(address token, address priceFeed) external;
+
+    //
+    // PRICE UPDATES
+    //
+    function updatePrices(PriceUpdate[] calldata updates) external;
 }

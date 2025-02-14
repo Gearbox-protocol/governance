@@ -6,11 +6,12 @@ pragma solidity ^0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
+import {OptionalCall} from "@gearbox-protocol/core-v3/contracts/libraries/OptionalCall.sol";
 import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/SanityCheckTrait.sol";
 import {PriceFeedValidationTrait} from "@gearbox-protocol/core-v3/contracts/traits/PriceFeedValidationTrait.sol";
-import {IPriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeed.sol";
+import {IPriceFeed, IUpdatablePriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeed.sol";
 
-import {IPriceFeedStore, ConnectedPriceFeed} from "../interfaces/IPriceFeedStore.sol";
+import {IPriceFeedStore} from "../interfaces/IPriceFeedStore.sol";
 import {
     AP_PRICE_FEED_STORE,
     AP_INSTANCE_MANAGER_PROXY,
@@ -18,12 +19,14 @@ import {
     NO_VERSION_CONTROL
 } from "../libraries/ContractLiterals.sol";
 import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
-import {PriceFeedInfo} from "../interfaces/Types.sol";
+import {ConnectedPriceFeed, PriceFeedInfo, PriceUpdate} from "../interfaces/Types.sol";
+import {NestedPriceFeeds} from "../libraries/NestedPriceFeeds.sol";
 import {ImmutableOwnableTrait} from "../traits/ImmutableOwnableTrait.sol";
 import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
 
 contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedValidationTrait, IPriceFeedStore {
     using EnumerableSet for EnumerableSet.AddressSet;
+    using NestedPriceFeeds for IPriceFeed;
 
     //
     // CONSTANTS
@@ -42,6 +45,9 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
 
     /// @dev Set of all known price feeds
     EnumerableSet.AddressSet internal _knownTokens;
+
+    /// @dev Set of all updatable price feeds
+    EnumerableSet.AddressSet internal _updatablePriceFeeds;
 
     /// @dev Mapping from token address to its set of allowed price feeds
     mapping(address token => EnumerableSet.AddressSet) internal _allowedPriceFeeds;
@@ -84,6 +90,10 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
         return _allowanceTimestamps[token][priceFeed];
     }
 
+    function isKnownToken(address token) external view returns (bool) {
+        return _knownTokens.contains(token);
+    }
+
     function getKnownTokens() external view returns (address[] memory) {
         return _knownTokens.values();
     }
@@ -98,6 +108,10 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
             connectedPriceFeeds[i].priceFeeds = getPriceFeeds(tokens[i]);
         }
         return connectedPriceFeeds;
+    }
+
+    function isKnownPriceFeed(address priceFeed) external view returns (bool) {
+        return _knownPriceFeeds.contains(priceFeed);
     }
 
     function getKnownPriceFeeds() external view returns (address[] memory) {
@@ -115,38 +129,18 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
         onlyOwner
         nonZeroAddress(priceFeed)
     {
-        if (_knownPriceFeeds.contains(priceFeed)) revert PriceFeedAlreadyAddedException(priceFeed);
+        if (!_knownPriceFeeds.add(priceFeed)) revert PriceFeedAlreadyAddedException(priceFeed);
 
         _validatePriceFeed(priceFeed, stalenessPeriod);
+        bool isExternal = _validatePriceFeedTree(priceFeed);
 
-        bytes32 priceFeedType = "PRICE_FEED::EXTERNAL";
-        uint256 priceFeedVersion = 0;
-
-        if (IBytecodeRepository(bytecodeRepository).deployedContracts(priceFeed) != 0) {
-            try Ownable2Step(priceFeed).owner() returns (address owner_) {
-                if (owner_ != address(this)) {
-                    revert PriceFeedIsNotOwnedByStore(priceFeed);
-                }
-
-                try Ownable2Step(priceFeed).pendingOwner() returns (address pendingOwner_) {
-                    if (pendingOwner_ != address(0)) {
-                        revert PriceFeedIsNotOwnedByStore(priceFeed);
-                    }
-                } catch {}
-            } catch {}
-
-            try IPriceFeed(priceFeed).contractType() returns (bytes32 _cType) {
-                priceFeedType = _cType;
-                priceFeedVersion = IPriceFeed(priceFeed).version();
-            } catch {}
-        }
-
-        _knownPriceFeeds.add(priceFeed);
-        _priceFeedInfo[priceFeed].author = msg.sender;
-        _priceFeedInfo[priceFeed].priceFeedType = priceFeedType;
-        _priceFeedInfo[priceFeed].stalenessPeriod = stalenessPeriod;
-        _priceFeedInfo[priceFeed].version = priceFeedVersion;
-        _priceFeedInfo[priceFeed].name = _name;
+        _priceFeedInfo[priceFeed] = PriceFeedInfo({
+            author: msg.sender,
+            stalenessPeriod: stalenessPeriod,
+            priceFeedType: isExternal ? bytes32("PRICE_FEED::EXTERNAL") : IPriceFeed(priceFeed).contractType(),
+            version: isExternal ? 0 : IPriceFeed(priceFeed).version(),
+            name: _name
+        });
 
         emit AddPriceFeed(priceFeed, stalenessPeriod, _name);
     }
@@ -180,8 +174,8 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
      */
     function allowPriceFeed(address token, address priceFeed) external onlyOwner nonZeroAddress(token) {
         if (!_knownPriceFeeds.contains(priceFeed)) revert PriceFeedNotKnownException(priceFeed);
+        if (!_allowedPriceFeeds[token].add(priceFeed)) return;
 
-        _allowedPriceFeeds[token].add(priceFeed);
         _allowanceTimestamps[token][priceFeed] = block.timestamp;
         _knownTokens.add(token);
 
@@ -206,5 +200,54 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
 
     function priceFeedInfo(address priceFeed) external view returns (PriceFeedInfo memory) {
         return _priceFeedInfo[priceFeed];
+    }
+
+    function getUpdatablePriceFeeds() external view returns (address[] memory) {
+        return _updatablePriceFeeds.values();
+    }
+
+    function updatePrices(PriceUpdate[] calldata updates) external {
+        uint256 numUpdates = updates.length;
+        for (uint256 i; i < numUpdates; ++i) {
+            if (!_updatablePriceFeeds.contains(updates[i].priceFeed)) {
+                revert PriceFeedIsNotUpdatableException(updates[i].priceFeed);
+            }
+            IUpdatablePriceFeed(updates[i].priceFeed).updatePrice(updates[i].data);
+        }
+    }
+
+    function _validatePriceFeedTree(address priceFeed) internal returns (bool isExternal) {
+        isExternal = _validatePriceFeedDeployment(priceFeed);
+        if (_isUpdatable(priceFeed) && _updatablePriceFeeds.add(priceFeed)) emit AddUpdatablePriceFeed(priceFeed);
+        address[] memory underlyingFeeds = IPriceFeed(priceFeed).getUnderlyingFeeds();
+        uint256 numFeeds = underlyingFeeds.length;
+        for (uint256 i; i < numFeeds; ++i) {
+            _validatePriceFeedTree(underlyingFeeds[i]);
+        }
+    }
+
+    function _validatePriceFeedDeployment(address priceFeed) internal view returns (bool) {
+        if (IBytecodeRepository(bytecodeRepository).deployedContracts(priceFeed) == 0) return true;
+
+        try Ownable2Step(priceFeed).owner() returns (address owner_) {
+            if (owner_ != address(this)) revert PriceFeedIsNotOwnedByStore(priceFeed);
+            try Ownable2Step(priceFeed).pendingOwner() returns (address pendingOwner_) {
+                if (pendingOwner_ != address(0)) revert PriceFeedIsNotOwnedByStore(priceFeed);
+            } catch {}
+        } catch {}
+
+        return false;
+    }
+
+    function _isUpdatable(address priceFeed) internal view returns (bool updatable) {
+        // NOTE: Some external price feeds without `updatable` may have a fallback function that changes state,
+        // which can cause a `THROW` that burns all gas, or does not change state and instead returns empty data.
+        // To handle these cases, we use a special call construction with a strict gas limit.
+        (bool success, bytes memory returnData) = OptionalCall.staticCallOptionalSafe({
+            target: priceFeed,
+            data: abi.encodeWithSelector(IUpdatablePriceFeed.updatable.selector),
+            gasAllowance: 10_000
+        });
+        if (success) updatable = abi.decode(returnData, (bool));
     }
 }
