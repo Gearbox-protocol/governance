@@ -445,6 +445,9 @@ contract PriceFeedStoreTest is Test {
         vm.startPrank(owner);
         store.addPriceFeed(address(externalFeed), 3600, "External Feed");
 
+        // Verify no ownership check was performed
+        vm.expectCall(address(externalFeed), abi.encodeWithSignature("owner()"), 0);
+
         // Verify feed was added with correct metadata
         PriceFeedInfo memory info = store.priceFeedInfo(address(externalFeed));
         assertEq(info.priceFeedType, "PRICE_FEED::EXTERNAL");
@@ -452,9 +455,6 @@ contract PriceFeedStoreTest is Test {
         assertEq(info.stalenessPeriod, 3600);
         assertEq(info.name, "External Feed");
         assertEq(info.author, owner);
-
-        // Verify no ownership check was performed
-        vm.expectCall(address(externalFeed), abi.encodeWithSignature("owner()"), 0);
         vm.stopPrank();
     }
 

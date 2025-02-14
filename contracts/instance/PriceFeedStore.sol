@@ -6,7 +6,6 @@ pragma solidity ^0.8.23;
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
-import {OptionalCall} from "@gearbox-protocol/core-v3/contracts/libraries/OptionalCall.sol";
 import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/SanityCheckTrait.sol";
 import {PriceFeedValidationTrait} from "@gearbox-protocol/core-v3/contracts/traits/PriceFeedValidationTrait.sol";
 import {IPriceFeed, IUpdatablePriceFeed} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeed.sol";
@@ -216,14 +215,17 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
         }
     }
 
-    function _validatePriceFeedTree(address priceFeed) internal returns (bool isExternal) {
-        isExternal = _validatePriceFeedDeployment(priceFeed);
+    function _validatePriceFeedTree(address priceFeed) internal returns (bool) {
+        if (_validatePriceFeedDeployment(priceFeed)) return true;
+
         if (_isUpdatable(priceFeed) && _updatablePriceFeeds.add(priceFeed)) emit AddUpdatablePriceFeed(priceFeed);
         address[] memory underlyingFeeds = IPriceFeed(priceFeed).getUnderlyingFeeds();
         uint256 numFeeds = underlyingFeeds.length;
         for (uint256 i; i < numFeeds; ++i) {
             _validatePriceFeedTree(underlyingFeeds[i]);
         }
+
+        return false;
     }
 
     function _validatePriceFeedDeployment(address priceFeed) internal view returns (bool) {
@@ -239,15 +241,11 @@ contract PriceFeedStore is ImmutableOwnableTrait, SanityCheckTrait, PriceFeedVal
         return false;
     }
 
-    function _isUpdatable(address priceFeed) internal view returns (bool updatable) {
-        // NOTE: Some external price feeds without `updatable` may have a fallback function that changes state,
-        // which can cause a `THROW` that burns all gas, or does not change state and instead returns empty data.
-        // To handle these cases, we use a special call construction with a strict gas limit.
-        (bool success, bytes memory returnData) = OptionalCall.staticCallOptionalSafe({
-            target: priceFeed,
-            data: abi.encodeWithSelector(IUpdatablePriceFeed.updatable.selector),
-            gasAllowance: 10_000
-        });
-        if (success) updatable = abi.decode(returnData, (bool));
+    function _isUpdatable(address priceFeed) internal view returns (bool) {
+        try IUpdatablePriceFeed(priceFeed).updatable() returns (bool updatable) {
+            return updatable;
+        } catch {
+            return false;
+        }
     }
 }
