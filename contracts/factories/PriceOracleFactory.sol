@@ -41,6 +41,9 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
     /// @notice Address of the price feed store contract
     address public immutable priceFeedStore;
 
+    /// @notice Address of the zero price feed
+    address public immutable zeroPriceFeed;
+
     /// @notice Thrown when trying to set price feed for a token that is not allowed in the price feed store
     error PriceFeedNotAllowedException(address token, address priceFeed);
 
@@ -57,6 +60,7 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
     /// @param addressProvider_ Address provider contract address
     constructor(address addressProvider_) AbstractFactory(addressProvider_) {
         priceFeedStore = _getAddressOrRevert(AP_PRICE_FEED_STORE, NO_VERSION_CONTROL);
+        zeroPriceFeed = IPriceFeedStore(priceFeedStore).zeroPriceFeed();
     }
 
     // ---------- //
@@ -232,10 +236,10 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
         view
         returns (Call memory)
     {
-        // TODO: add exception for reserve price feed to set zero price feed
-        if (!IPriceFeedStore(priceFeedStore).isAllowedPriceFeed(token, priceFeed)) {
-            revert PriceFeedNotAllowedException(token, priceFeed);
-        }
+        bool isValid = IPriceFeedStore(priceFeedStore).isAllowedPriceFeed(token, priceFeed)
+            || reserve && priceFeed == zeroPriceFeed;
+        if (!isValid) revert PriceFeedNotAllowedException(token, priceFeed);
+
         uint32 stalenessPeriod = IPriceFeedStore(priceFeedStore).getStalenessPeriod(priceFeed);
 
         return reserve

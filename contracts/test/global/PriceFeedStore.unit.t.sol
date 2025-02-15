@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import {PriceFeedInfo, PriceUpdate} from "../../interfaces/Types.sol";
+import {Call, PriceFeedInfo, PriceUpdate} from "../../interfaces/Types.sol";
 
 import {Test} from "forge-std/Test.sol";
 import {PriceFeedStore} from "../../instance/PriceFeedStore.sol";
@@ -15,7 +15,10 @@ import {
     MockUpdatablePriceFeed
 } from "../mocks/MockPriceFeed.sol";
 import {
-    AP_BYTECODE_REPOSITORY, AP_INSTANCE_MANAGER_PROXY, NO_VERSION_CONTROL
+    AP_BYTECODE_REPOSITORY,
+    AP_INSTANCE_MANAGER_PROXY,
+    AP_ZERO_PRICE_FEED,
+    NO_VERSION_CONTROL
 } from "../../libraries/ContractLiterals.sol";
 import {
     ZeroAddressException,
@@ -28,6 +31,7 @@ contract PriceFeedStoreTest is Test {
     PriceFeedStore public store;
     address public owner;
     address public token;
+    address public zeroPriceFeed;
     MockPriceFeed public priceFeed;
     IAddressProvider public addressProvider;
     IBytecodeRepository public bytecodeRepository;
@@ -35,6 +39,7 @@ contract PriceFeedStoreTest is Test {
     function setUp() public {
         owner = makeAddr("owner");
         token = makeAddr("token");
+        zeroPriceFeed = makeAddr("zeroPriceFeed");
         priceFeed = new MockPriceFeed();
         addressProvider = IAddressProvider(makeAddr("addressProvider"));
         bytecodeRepository = IBytecodeRepository(makeAddr("bytecodeRepository"));
@@ -51,6 +56,12 @@ contract PriceFeedStoreTest is Test {
             address(addressProvider),
             abi.encodeWithSignature("getAddressOrRevert(bytes32,uint256)", AP_BYTECODE_REPOSITORY, NO_VERSION_CONTROL),
             abi.encode(address(bytecodeRepository))
+        );
+
+        vm.mockCall(
+            address(bytecodeRepository),
+            abi.encodeWithSignature("deploy(bytes32,uint256,bytes,bytes32)", AP_ZERO_PRICE_FEED, 3_10, "", bytes32(0)),
+            abi.encode(zeroPriceFeed)
         );
 
         vm.mockCall(address(bytecodeRepository), abi.encodeWithSignature("deployedContracts(address)"), abi.encode(0));
@@ -117,7 +128,7 @@ contract PriceFeedStoreTest is Test {
         store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
 
         vm.expectRevert(
-            abi.encodeWithSelector(IPriceFeedStore.PriceFeedAlreadyAddedException.selector, address(priceFeed))
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsAlreadyAddedException.selector, address(priceFeed))
         );
         store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
         vm.stopPrank();
@@ -159,7 +170,9 @@ contract PriceFeedStoreTest is Test {
     /// @notice Test unknown price feeds cannot be allowed
     function test_PFS_08_allowPriceFeed_reverts_on_unknown_feed() public {
         vm.prank(owner);
-        vm.expectRevert(abi.encodeWithSelector(IPriceFeedStore.PriceFeedNotKnownException.selector, address(priceFeed)));
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotKnownException.selector, address(priceFeed))
+        );
         store.allowPriceFeed(token, address(priceFeed));
     }
 
@@ -516,6 +529,78 @@ contract PriceFeedStoreTest is Test {
             abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotOwnedByStore.selector, address(ownable2StepFeed))
         );
         store.addPriceFeed(address(ownable2StepFeed), 3600, "Ownable2Step Feed");
+
+        vm.stopPrank();
+    }
+
+    function test_PFS_21_configurePriceFeeds_works() public {
+        vm.startPrank(owner);
+        store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
+
+        // Test allowed configuration call
+        bytes memory callData = abi.encodeWithSignature("setPrice(int256)", 1234);
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call(address(priceFeed), callData);
+        store.configurePriceFeeds(calls);
+
+        // Verify call was executed
+        (, int256 answer,,,) = priceFeed.latestRoundData();
+        assertEq(answer, 1234);
+        vm.stopPrank();
+    }
+
+    function test_PFS_22_configurePriceFeeds_reverts_if_not_owner() public {
+        vm.prank(owner);
+        store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
+
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call(address(priceFeed), abi.encodeWithSignature("setPrice(int256)", 1234));
+
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSignature("CallerIsNotOwnerException(address)", notOwner));
+        store.configurePriceFeeds(calls);
+    }
+
+    function test_PFS_23_configurePriceFeeds_reverts_on_unknown_feed() public {
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call(address(priceFeed), abi.encodeWithSignature("setPrice(int256)", 1234));
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotKnownException.selector, address(priceFeed))
+        );
+        store.configurePriceFeeds(calls);
+    }
+
+    function test_PFS_24_configurePriceFeeds_reverts_on_ownership_transfer() public {
+        vm.prank(owner);
+        store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
+
+        Call[] memory transferCall = new Call[](1);
+        transferCall[0] =
+            Call(address(priceFeed), abi.encodeWithSignature("transferOwnership(address)", makeAddr("newOwner")));
+
+        Call[] memory renounceCall = new Call[](1);
+        renounceCall[0] = Call(address(priceFeed), abi.encodeWithSignature("renounceOwnership()"));
+
+        vm.startPrank(owner);
+
+        // Test transferOwnership
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IPriceFeedStore.ForbiddenConfigurationMethodException.selector, bytes4(transferCall[0].callData)
+            )
+        );
+        store.configurePriceFeeds(transferCall);
+
+        // Test renounceOwnership
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IPriceFeedStore.ForbiddenConfigurationMethodException.selector, bytes4(renounceCall[0].callData)
+            )
+        );
+        store.configurePriceFeeds(renounceCall);
 
         vm.stopPrank();
     }

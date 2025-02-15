@@ -3610,7 +3610,7 @@ export const priceFeedStoreAbi = [
   {
     type: 'constructor',
     inputs: [
-      { name: '_addressProvider', internalType: 'address', type: 'address' },
+      { name: 'addressProvider_', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -3619,11 +3619,18 @@ export const priceFeedStoreAbi = [
     inputs: [
       { name: 'priceFeed', internalType: 'address', type: 'address' },
       { name: 'stalenessPeriod', internalType: 'uint32', type: 'uint32' },
-      { name: '_name', internalType: 'string', type: 'string' },
+      { name: 'name', internalType: 'string', type: 'string' },
     ],
     name: 'addPriceFeed',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'addressProvider',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -3632,6 +3639,30 @@ export const priceFeedStoreAbi = [
       { name: 'priceFeed', internalType: 'address', type: 'address' },
     ],
     name: 'allowPriceFeed',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bytecodeRepository',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'calls',
+        internalType: 'struct Call[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'target', internalType: 'address', type: 'address' },
+          { name: 'callData', internalType: 'bytes', type: 'bytes' },
+        ],
+      },
+    ],
+    name: 'configurePriceFeeds',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -3696,7 +3727,7 @@ export const priceFeedStoreAbi = [
     name: 'getTokenPriceFeedsMap',
     outputs: [
       {
-        name: '',
+        name: 'connectedPriceFeeds',
         internalType: 'struct ConnectedPriceFeed[]',
         type: 'tuple[]',
         components: [
@@ -3800,6 +3831,13 @@ export const priceFeedStoreAbi = [
     stateMutability: 'view',
   },
   {
+    type: 'function',
+    inputs: [],
+    name: 'zeroPriceFeed',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -3899,13 +3937,26 @@ export const priceFeedStoreAbi = [
     inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
     name: 'CallerIsNotOwnerException',
   },
+  {
+    type: 'error',
+    inputs: [{ name: 'selector', internalType: 'bytes4', type: 'bytes4' }],
+    name: 'ForbiddenConfigurationMethodException',
+  },
   { type: 'error', inputs: [], name: 'IncorrectParameterException' },
   { type: 'error', inputs: [], name: 'IncorrectPriceException' },
   { type: 'error', inputs: [], name: 'IncorrectPriceFeedException' },
   {
     type: 'error',
     inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
-    name: 'PriceFeedAlreadyAddedException',
+    name: 'PriceFeedIsAlreadyAddedException',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'priceFeed', internalType: 'address', type: 'address' },
+    ],
+    name: 'PriceFeedIsAlreadyAllowedException',
   },
   {
     type: 'error',
@@ -3918,17 +3969,17 @@ export const priceFeedStoreAbi = [
   {
     type: 'error',
     inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
+    name: 'PriceFeedIsNotKnownException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
     name: 'PriceFeedIsNotOwnedByStore',
   },
   {
     type: 'error',
     inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
     name: 'PriceFeedIsNotUpdatableException',
-  },
-  {
-    type: 'error',
-    inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
-    name: 'PriceFeedNotKnownException',
   },
   { type: 'error', inputs: [], name: 'StalePriceException' },
   { type: 'error', inputs: [], name: 'ZeroAddressException' },
