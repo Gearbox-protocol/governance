@@ -26,9 +26,12 @@ import {
 import {AbstractFactory} from "./AbstractFactory.sol";
 import {AbstractMarketFactory} from "./AbstractMarketFactory.sol";
 
-contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
-    using CallBuilder for Call[];
+interface IPriceOracleLegacy {
+    /// @dev Older signature for fetching main and reserve feeds, reverts if price feed is not set
+    function priceFeedsRaw(address token, bool reserve) external view returns (address);
+}
 
+contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
     /// @notice Contract version
     uint256 public constant override version = 3_10;
 
@@ -112,23 +115,26 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
         override(AbstractMarketFactory, IMarketFactory)
         returns (Call[] memory calls)
     {
-        // TODO: as number of calls is predictable, we can avoid using append
-        calls = CallBuilder.build(_unauthorizeFactory(msg.sender, pool, oldPriceOracle));
-
         address underlying = _underlying(pool);
-        // QUESTION: shall we prevent adding reserve price feed for underlying?
-        calls = calls.append(
-            _setPriceFeed(newPriceOracle, underlying, _getPriceFeed(oldPriceOracle, underlying, false), false)
-        );
-
         address[] memory tokens = _quotedTokens(_quotaKeeper(pool));
-        uint256 numTokens = tokens.length;
-        for (uint256 i; i < numTokens; ++i) {
-            address main = _getPriceFeed(oldPriceOracle, tokens[i], false);
-            calls = calls.append(_setPriceFeed(newPriceOracle, tokens[i], main, false));
+        uint256 numTokens = 1 + tokens.length;
 
-            address reserve = _getPriceFeed(oldPriceOracle, tokens[i], true);
-            if (reserve != address(0)) calls = calls.append(_setPriceFeed(newPriceOracle, tokens[i], reserve, true));
+        calls = new Call[](1 + 2 * numTokens);
+        calls[0] = _unauthorizeFactory(msg.sender, pool, oldPriceOracle);
+
+        uint256 numCalls = 1;
+        for (uint256 i; i < numTokens; ++i) {
+            address token = i == 0 ? underlying : tokens[i - 1];
+
+            address main = _getPriceFeed(oldPriceOracle, token, false);
+            calls[numCalls++] = _setPriceFeed(newPriceOracle, token, main, false);
+
+            address reserve = _getPriceFeed(oldPriceOracle, token, true);
+            if (reserve != address(0)) calls[numCalls++] = _setPriceFeed(newPriceOracle, token, reserve, true);
+        }
+
+        assembly {
+            mstore(calls, numCalls)
         }
     }
 
@@ -209,7 +215,13 @@ contract PriceOracleFactory is AbstractMarketFactory, IPriceOracleFactory {
     }
 
     function _getPriceFeed(address priceOracle, address token, bool reserve) internal view returns (address) {
-        // FIXME: doesn't work like that for price oracle v3.0
+        if (IPriceOracleV3(priceOracle).version() < 3_10) {
+            try IPriceOracleLegacy(priceOracle).priceFeedsRaw(token, reserve) returns (address priceFeed) {
+                return priceFeed;
+            } catch {
+                return address(0);
+            }
+        }
         return reserve
             ? IPriceOracleV3(priceOracle).reservePriceFeeds(token)
             : IPriceOracleV3(priceOracle).priceFeeds(token);
