@@ -205,8 +205,24 @@ export const defaultLossPolicyAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'accessMode',
+    outputs: [
+      { name: '', internalType: 'enum ILossPolicy.AccessMode', type: 'uint8' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'acl',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'checksEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
   {
@@ -218,31 +234,19 @@ export const defaultLossPolicyAbi = [
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'disable',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'enable',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'enabled',
-    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [
       { name: '', internalType: 'address', type: 'address' },
-      { name: '', internalType: 'address', type: 'address' },
-      { name: '', internalType: 'bytes', type: 'bytes' },
+      { name: 'caller', internalType: 'address', type: 'address' },
+      {
+        name: '',
+        internalType: 'struct ILossPolicy.Params',
+        type: 'tuple',
+        components: [
+          { name: 'totalDebtUSD', internalType: 'uint256', type: 'uint256' },
+          { name: 'twvUSD', internalType: 'uint256', type: 'uint256' },
+          { name: 'extraData', internalType: 'bytes', type: 'bytes' },
+        ],
+      },
     ],
     name: 'isLiquidatable',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
@@ -257,10 +261,51 @@ export const defaultLossPolicyAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      {
+        name: 'mode',
+        internalType: 'enum ILossPolicy.AccessMode',
+        type: 'uint8',
+      },
+    ],
+    name: 'setAccessMode',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'enabled', internalType: 'bool', type: 'bool' }],
+    name: 'setChecksEnabled',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'version',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'mode',
+        internalType: 'enum ILossPolicy.AccessMode',
+        type: 'uint8',
+        indexed: false,
+      },
+    ],
+    name: 'SetAccessMode',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'enabled', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'SetChecksEnabled',
   },
   {
     type: 'error',
@@ -269,23 +314,6 @@ export const defaultLossPolicyAbi = [
   },
   { type: 'error', inputs: [], name: 'CallerNotConfiguratorException' },
   { type: 'error', inputs: [], name: 'ZeroAddressException' },
-]
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// IAliasLossPolicy
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const iAliasLossPolicyAbi = [
-  {
-    type: 'function',
-    inputs: [
-      { name: 'token', internalType: 'address', type: 'address' },
-      { name: 'priceFeed', internalType: 'address', type: 'address' },
-    ],
-    name: 'setAlias',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
 ]
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

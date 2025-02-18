@@ -19,7 +19,7 @@ export default defineConfig({
         "ICreditConfigureActions.sol/**.json",
         "ITumblerV3.sol/**.json",
         "IGaugeV3.sol/**.json",
-        "IAliasLossPolicy.sol/**.json",
+        "IAliasedLossPolicyV3.sol/**.json",
         "DefaultLossPolicy.sol/**.json",
       ],
     }),

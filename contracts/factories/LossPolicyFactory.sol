@@ -85,7 +85,7 @@ contract LossPolicyFactory is AbstractMarketFactory, ILossPolicyFactory {
         returns (Call[] memory)
     {
         bytes4 selector = bytes4(callData);
-        if (selector != ILossPolicy.enable.selector && selector != ILossPolicy.disable.selector) {
+        if (selector != ILossPolicy.setAccessMode.selector && selector != ILossPolicy.setChecksEnabled.selector) {
             revert ForbiddenEmergencyConfigurationCallException(selector);
         }
         return CallBuilder.build(Call(_lossPolicy(pool), callData));

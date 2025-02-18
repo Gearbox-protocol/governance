@@ -53,11 +53,6 @@ struct ConnectedPriceFeed {
     address[] priceFeeds;
 }
 
-struct PriceUpdate {
-    address priceFeed;
-    bytes data;
-}
-
 // The `BytecodeInfoMeta` struct holds metadata about a bytecode in BytecodeRepository
 //
 // - `author`: A person who first upload smart-contract to BCR

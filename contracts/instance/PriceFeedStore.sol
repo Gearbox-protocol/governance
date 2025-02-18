@@ -13,8 +13,8 @@ import {SanityCheckTrait} from "@gearbox-protocol/core-v3/contracts/traits/Sanit
 
 import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
 import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
-import {IPriceFeedStore} from "../interfaces/IPriceFeedStore.sol";
-import {Call, ConnectedPriceFeed, PriceFeedInfo, PriceUpdate} from "../interfaces/Types.sol";
+import {IPriceFeedStore, PriceUpdate} from "../interfaces/IPriceFeedStore.sol";
+import {Call, ConnectedPriceFeed, PriceFeedInfo} from "../interfaces/Types.sol";
 
 import {
     AP_BYTECODE_REPOSITORY,

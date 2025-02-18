@@ -3,13 +3,17 @@
 // (c) Gearbox Foundation, 2024.
 pragma solidity ^0.8.23;
 
+import {
+    IPriceFeedStore as IPriceFeedStoreBase,
+    PriceUpdate
+} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IPriceFeedStore.sol";
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {IDeployerTrait} from "./base/IDeployerTrait.sol";
 import {IImmutableOwnableTrait} from "./base/IImmutableOwnableTrait.sol";
-import {Call, ConnectedPriceFeed, PriceFeedInfo, PriceUpdate} from "./Types.sol";
+import {Call, ConnectedPriceFeed, PriceFeedInfo} from "./Types.sol";
 
 /// @title Price feed store interface
-interface IPriceFeedStore is IVersion, IDeployerTrait, IImmutableOwnableTrait {
+interface IPriceFeedStore is IPriceFeedStoreBase, IVersion, IDeployerTrait, IImmutableOwnableTrait {
     // ------ //
     // ERRORS //
     // ------ //
@@ -61,7 +65,7 @@ interface IPriceFeedStore is IVersion, IDeployerTrait, IImmutableOwnableTrait {
     function zeroPriceFeed() external view returns (address);
     function getPriceFeeds(address token) external view returns (address[] memory);
     function isAllowedPriceFeed(address token, address priceFeed) external view returns (bool);
-    function getStalenessPeriod(address priceFeed) external view returns (uint32);
+    function getStalenessPeriod(address priceFeed) external view override returns (uint32);
     function getAllowanceTimestamp(address token, address priceFeed) external view returns (uint256);
     function getTokenPriceFeedsMap() external view returns (ConnectedPriceFeed[] memory);
     function getKnownTokens() external view returns (address[] memory);
@@ -85,5 +89,5 @@ interface IPriceFeedStore is IVersion, IDeployerTrait, IImmutableOwnableTrait {
     // ------------- //
 
     function getUpdatablePriceFeeds() external view returns (address[] memory);
-    function updatePrices(PriceUpdate[] calldata updates) external;
+    function updatePrices(PriceUpdate[] calldata updates) external override;
 }

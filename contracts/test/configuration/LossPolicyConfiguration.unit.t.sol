@@ -19,22 +19,50 @@ contract LossPolicyConfigurationUnitTest is ConfigurationTestHelper {
     /// REGULAR CONFIGURATION TESTS ///
 
     function test_LP_01_configure() public {
-        vm.expectCall(_lossPolicy, abi.encodeCall(ILossPolicy.enable, ()));
+        vm.expectCall(_lossPolicy, abi.encodeCall(ILossPolicy.setAccessMode, (ILossPolicy.AccessMode.Permissioned)));
 
         vm.prank(admin);
-        marketConfigurator.configureLossPolicy(address(pool), abi.encodeCall(ILossPolicy.enable, ()));
+        marketConfigurator.configureLossPolicy(
+            address(pool), abi.encodeCall(ILossPolicy.setAccessMode, (ILossPolicy.AccessMode.Permissioned))
+        );
 
-        assertTrue(DefaultLossPolicy(_lossPolicy).enabled(), "Loss policy must be enabled");
+        assertEq(
+            uint8(DefaultLossPolicy(_lossPolicy).accessMode()),
+            uint8(ILossPolicy.AccessMode.Permissioned),
+            "Access mode must be PERMISSIONED"
+        );
+
+        vm.expectCall(_lossPolicy, abi.encodeCall(ILossPolicy.setChecksEnabled, (true)));
+
+        vm.prank(admin);
+        marketConfigurator.configureLossPolicy(address(pool), abi.encodeCall(ILossPolicy.setChecksEnabled, (true)));
+
+        assertTrue(DefaultLossPolicy(_lossPolicy).checksEnabled(), "Checks must be enabled");
     }
 
     /// EMERGENCY CONFIGURATION TESTS ///
 
     function test_LP_02_emergency_configure() public {
-        vm.expectCall(_lossPolicy, abi.encodeCall(ILossPolicy.enable, ()));
+        vm.expectCall(_lossPolicy, abi.encodeCall(ILossPolicy.setAccessMode, (ILossPolicy.AccessMode.Forbidden)));
 
         vm.prank(emergencyAdmin);
-        marketConfigurator.emergencyConfigureLossPolicy(address(pool), abi.encodeCall(ILossPolicy.enable, ()));
+        marketConfigurator.emergencyConfigureLossPolicy(
+            address(pool), abi.encodeCall(ILossPolicy.setAccessMode, (ILossPolicy.AccessMode.Forbidden))
+        );
 
-        assertTrue(DefaultLossPolicy(_lossPolicy).enabled(), "Loss policy must be enabled");
+        assertEq(
+            uint8(DefaultLossPolicy(_lossPolicy).accessMode()),
+            uint8(ILossPolicy.AccessMode.Forbidden),
+            "Access mode must be FORBIDDEN"
+        );
+
+        vm.expectCall(_lossPolicy, abi.encodeCall(ILossPolicy.setChecksEnabled, (false)));
+
+        vm.prank(emergencyAdmin);
+        marketConfigurator.emergencyConfigureLossPolicy(
+            address(pool), abi.encodeCall(ILossPolicy.setChecksEnabled, (false))
+        );
+
+        assertFalse(DefaultLossPolicy(_lossPolicy).checksEnabled(), "Checks must be disabled");
     }
 }

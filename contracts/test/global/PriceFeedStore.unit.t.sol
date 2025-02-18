@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.23;
 
-import {Call, PriceFeedInfo, PriceUpdate} from "../../interfaces/Types.sol";
+import {Call, PriceFeedInfo} from "../../interfaces/Types.sol";
 
 import {Test} from "forge-std/Test.sol";
 import {PriceFeedStore} from "../../instance/PriceFeedStore.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
-import {IPriceFeedStore} from "../../interfaces/IPriceFeedStore.sol";
+import {IPriceFeedStore, PriceUpdate} from "../../interfaces/IPriceFeedStore.sol";
 import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
 import {
     MockPriceFeed,
