@@ -248,7 +248,7 @@ export const defaultLossPolicyAbi = [
         ],
       },
     ],
-    name: 'isLiquidatable',
+    name: 'isLiquidatableWithLoss',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
