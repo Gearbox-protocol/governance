@@ -16,7 +16,7 @@ contract MockLossPolicy is ILossPolicy {
 
     function serialize() external pure override returns (bytes memory) {}
 
-    function isLiquidatable(address, address, Params calldata) external view override returns (bool) {
+    function isLiquidatableWithLoss(address, address, Params calldata) external view override returns (bool) {
         return !checksEnabled && accessMode == AccessMode.Permissionless;
     }
 

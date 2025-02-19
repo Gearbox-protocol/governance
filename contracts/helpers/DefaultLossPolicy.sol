@@ -21,7 +21,7 @@ contract DefaultLossPolicy is ILossPolicy, ACLTrait {
         return abi.encode(accessMode, checksEnabled);
     }
 
-    function isLiquidatable(address, address caller, Params calldata) external view override returns (bool) {
+    function isLiquidatableWithLoss(address, address caller, Params calldata) external view override returns (bool) {
         AccessMode accessMode_ = accessMode;
         if (accessMode_ == AccessMode.Forbidden) return false;
         if (accessMode_ == AccessMode.Permissioned && !_hasRole("LOSS_LIQUIDATOR", caller)) return false;
