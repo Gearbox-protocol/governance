@@ -8,6 +8,7 @@ import {PriceFeedStore} from "../../instance/PriceFeedStore.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
 import {IPriceFeedStore, PriceUpdate} from "../../interfaces/IPriceFeedStore.sol";
 import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
+import {IImmutableOwnableTrait} from "../../interfaces/base/IImmutableOwnableTrait.sol";
 import {
     MockPriceFeed,
     MockSingleUnderlyingPriceFeed,
@@ -95,7 +96,6 @@ contract PriceFeedStoreTest is Test {
         PriceFeedInfo memory priceFeedInfo = store.priceFeedInfo(address(priceFeed));
 
         // Verify all parameters were set correctly
-        assertEq(priceFeedInfo.author, owner);
         assertEq(priceFeedInfo.priceFeedType, "PRICE_FEED::MOCK");
         assertEq(priceFeedInfo.stalenessPeriod, stalenessPeriod);
         assertEq(priceFeedInfo.version, 1);
@@ -467,7 +467,6 @@ contract PriceFeedStoreTest is Test {
         assertEq(info.version, 0);
         assertEq(info.stalenessPeriod, 3600);
         assertEq(info.name, "External Feed");
-        assertEq(info.author, owner);
         vm.stopPrank();
     }
 
@@ -603,5 +602,58 @@ contract PriceFeedStoreTest is Test {
         store.configurePriceFeeds(renounceCall);
 
         vm.stopPrank();
+    }
+
+    function test_PFS_25_removePriceFeed_works() public {
+        vm.startPrank(owner);
+
+        // Test it reverts on unknown feed
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotKnownException.selector, address(priceFeed))
+        );
+        store.removePriceFeed(address(priceFeed));
+
+        // Add price feed and allow it for some tokens
+        store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
+        store.allowPriceFeed(token, address(priceFeed));
+        address token2 = makeAddr("token2");
+        store.allowPriceFeed(token2, address(priceFeed));
+        vm.stopPrank();
+
+        // Test it reverts if not owner
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(IImmutableOwnableTrait.CallerIsNotOwnerException.selector, notOwner));
+        store.removePriceFeed(address(priceFeed));
+
+        // Test it successfully removes feed
+        vm.prank(owner);
+
+        // Expect ForbidPriceFeed events for each token
+        vm.expectEmit(true, true, false, false);
+        emit IPriceFeedStore.ForbidPriceFeed(token, address(priceFeed));
+        vm.expectEmit(true, true, false, false);
+        emit IPriceFeedStore.ForbidPriceFeed(token2, address(priceFeed));
+
+        // Expect RemovePriceFeed event
+        vm.expectEmit(true, false, false, false);
+        emit IPriceFeedStore.RemovePriceFeed(address(priceFeed));
+
+        store.removePriceFeed(address(priceFeed));
+
+        // Verify feed was removed
+        assertFalse(store.isKnownPriceFeed(address(priceFeed)), "Feed should not be known");
+        assertFalse(store.isAllowedPriceFeed(token, address(priceFeed)), "Feed should not be allowed for token1");
+        assertFalse(store.isAllowedPriceFeed(token2, address(priceFeed)), "Feed should not be allowed for token2");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotAllowedException.selector, token, address(priceFeed))
+        );
+        store.getAllowanceTimestamp(token, address(priceFeed));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotAllowedException.selector, token2, address(priceFeed))
+        );
+        store.getAllowanceTimestamp(token2, address(priceFeed));
     }
 }

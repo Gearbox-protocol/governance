@@ -46,7 +46,6 @@ struct MarketFactories {
 }
 
 struct PriceFeedInfo {
-    address author;
     string name;
     uint32 stalenessPeriod;
     bytes32 priceFeedType;

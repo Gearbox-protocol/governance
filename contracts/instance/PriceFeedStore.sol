@@ -166,7 +166,6 @@ contract PriceFeedStore is
         bool isExternal = _validatePriceFeedTree(priceFeed);
 
         _priceFeedInfo[priceFeed] = PriceFeedInfo({
-            author: msg.sender,
             stalenessPeriod: stalenessPeriod,
             priceFeedType: isExternal ? bytes32("PRICE_FEED::EXTERNAL") : IPriceFeed(priceFeed).contractType(),
             version: isExternal ? 0 : IPriceFeed(priceFeed).version(),
@@ -174,6 +173,25 @@ contract PriceFeedStore is
         });
 
         emit AddPriceFeed(priceFeed, stalenessPeriod, name);
+    }
+
+    /// @notice Forbids `priceFeed` for all tokens and removes it from the store
+    /// @dev Reverts if caller is not owner
+    /// @dev Reverts if `priceFeed` is not known
+    function removePriceFeed(address priceFeed) external override onlyOwner {
+        if (!_knownPriceFeeds.remove(priceFeed)) revert PriceFeedIsNotKnownException(priceFeed);
+        delete _priceFeedInfo[priceFeed];
+
+        uint256 numTokens = _knownTokens.length();
+        for (uint256 i; i < numTokens; ++i) {
+            address token = _knownTokens.at(i);
+            if (_allowedPriceFeeds[token].remove(priceFeed)) {
+                _allowanceTimestamps[token][priceFeed] = 0;
+                emit ForbidPriceFeed(token, priceFeed);
+            }
+        }
+
+        emit RemovePriceFeed(priceFeed);
     }
 
     /// @notice Sets `priceFeed`'s staleness period to `stalenessPeriod`

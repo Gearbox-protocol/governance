@@ -46,6 +46,9 @@ interface IPriceFeedStore is IPriceFeedStoreBase, IVersion, IDeployerTrait, IImm
     /// @notice Emitted when a new price feed is added to the store
     event AddPriceFeed(address indexed priceFeed, uint32 stalenessPeriod, string name);
 
+    /// @notice Emitted when a price feed is removed from the store
+    event RemovePriceFeed(address indexed priceFeed);
+
     /// @notice Emitted when the staleness period is set for a price feed
     event SetStalenessPeriod(address indexed priceFeed, uint32 stalenessPeriod);
 
@@ -79,6 +82,7 @@ interface IPriceFeedStore is IPriceFeedStoreBase, IVersion, IDeployerTrait, IImm
     // ------------- //
 
     function addPriceFeed(address priceFeed, uint32 stalenessPeriod, string calldata name) external;
+    function removePriceFeed(address priceFeed) external;
     function setStalenessPeriod(address priceFeed, uint32 stalenessPeriod) external;
     function allowPriceFeed(address token, address priceFeed) external;
     function forbidPriceFeed(address token, address priceFeed) external;
