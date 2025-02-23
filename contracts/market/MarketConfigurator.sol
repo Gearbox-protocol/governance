@@ -786,9 +786,7 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
     }
 
     function _getLatestPatch(bytes32 key, uint256 minorVersion) internal view returns (address) {
-        return _getAddressOrRevert(
-            key, IAddressProvider(addressProvider).getLatestPatchVersion(key.fromSmallString(), minorVersion)
-        );
+        return _getAddressOrRevert(key, IAddressProvider(addressProvider).getLatestPatchVersion(key, minorVersion));
     }
 
     function _getLatestPatch(address factory) internal view returns (address) {

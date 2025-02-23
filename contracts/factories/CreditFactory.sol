@@ -331,7 +331,7 @@ contract CreditFactory is AbstractFactory, ICreditFactory {
             botList_ = ICreditFacadeV3(prevCreditFacade).botList();
         }
 
-        address weth = _tryGetAddress(AP_WETH_TOKEN, NO_VERSION_CONTROL);
+        address weth = _getAddress(AP_WETH_TOKEN, NO_VERSION_CONTROL);
 
         bytes memory constructorParams =
             abi.encode(addressProvider, creditManager, lossPolicy, botList_, weth, params.degenNFT, params.expirable);

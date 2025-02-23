@@ -5,132 +5,164 @@ pragma solidity ^0.8.23;
 
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {LibString} from "@solady/utils/LibString.sol";
-
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
-import {AddressNotFoundException} from "@gearbox-protocol/core-v3/contracts/interfaces/IExceptions.sol";
 
-import {IAddressProvider, ContractValue} from "../interfaces/IAddressProvider.sol";
+import {IAddressProvider} from "../interfaces/IAddressProvider.sol";
+import {AddressProviderEntry} from "../interfaces/Types.sol";
 import {AP_ADDRESS_PROVIDER, NO_VERSION_CONTROL} from "../libraries/ContractLiterals.sol";
 import {ImmutableOwnableTrait} from "../traits/ImmutableOwnableTrait.sol";
 
-struct ContractKey {
-    string key;
-    uint256 version;
-}
-
-/// @title Address provider V3
+/// @title Address provider
 /// @notice Stores addresses of important contracts
 contract AddressProvider is ImmutableOwnableTrait, IAddressProvider {
-    using EnumerableSet for EnumerableSet.AddressSet;
-    // using LibString for string;
-    using LibString for bytes32;
+    using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.UintSet;
+
+    /// @dev Internal struct with version info for a given key
+    struct VersionInfo {
+        uint256 latest;
+        mapping(uint256 majorVersion => uint256) latestByMajor;
+        mapping(uint256 minorVersion => uint256) latestByMinor;
+        EnumerableSet.UintSet versionsSet;
+    }
 
     /// @notice Contract version
     uint256 public constant override version = 3_10;
+
+    /// @notice Contract type
     bytes32 public constant override contractType = AP_ADDRESS_PROVIDER;
 
-    /// @notice Mapping from (contract key, version) to contract addresses
-    mapping(string => mapping(uint256 => address)) public override addresses;
+    /// @dev Set of saved entry keys
+    EnumerableSet.Bytes32Set internal _keysSet;
 
-    mapping(string => uint256) public latestVersions;
-    mapping(string => mapping(uint256 => uint256)) public latestMinorVersions;
-    mapping(string => mapping(uint256 => uint256)) public latestPatchVersions;
+    /// @dev Mapping from `key` to version info
+    mapping(bytes32 key => VersionInfo) internal _versionInfo;
 
-    ContractKey[] internal contractKeys;
+    /// @dev Mapping from `(key, ver)` pair to saved address
+    mapping(bytes32 key => mapping(uint256 ver => address)) internal _addresses;
 
-    error VersionNotFoundException();
+    /// @notice Constructor
+    /// @param owner_ Contract owner
+    constructor(address owner_) ImmutableOwnableTrait(owner_) {}
 
-    constructor(address _owner) ImmutableOwnableTrait(_owner) {
-        // The first event is emitted for the address provider itself to aid in contract discovery
-        emit SetAddress(AP_ADDRESS_PROVIDER.fromSmallString(), version, address(this));
+    // ------- //
+    // GETTERS //
+    // ------- //
+
+    /// @notice Returns the address by given `key` and `ver`
+    function getAddress(bytes32 key, uint256 ver) external view override returns (address) {
+        return _addresses[key][ver];
     }
 
-    /// @notice Returns the address of a contract with a given key and version
-    function getAddressOrRevert(string memory key, uint256 _version)
-        public
-        view
-        virtual
-        override
-        returns (address result)
-    {
-        result = addresses[key][_version];
-        if (result == address(0)) revert AddressNotFoundException();
+    /// @notice Returns the address by given `key` and `ver`, reverts if not found
+    function getAddressOrRevert(bytes32 key, uint256 ver) external view override returns (address result) {
+        result = _addresses[key][ver];
+        if (result == address(0)) revert AddressNotFoundException(key, ver);
     }
 
-    /// @notice Returns the address of a contract with a given key and version
-    function getAddressOrRevert(bytes32 key, uint256 _version) public view virtual override returns (address result) {
-        return getAddressOrRevert(key.fromSmallString(), _version);
+    /// @notice Returns all known keys
+    function getKeys() external view override returns (bytes32[] memory) {
+        return _keysSet.values();
     }
 
-    function getLatestVersion(string memory key) external view override returns (uint256) {
-        uint256 latestVersion = latestVersions[key];
-        if (latestVersion == 0) revert VersionNotFoundException();
-        return latestVersion;
+    /// @notice Returns all known versions for given `key`
+    function getVersions(bytes32 key) external view override returns (uint256[] memory) {
+        return _versionInfo[key].versionsSet.values();
     }
 
-    function getLatestMinorVersion(string memory key, uint256 majorVersion) external view override returns (uint256) {
-        majorVersion -= majorVersion % 100;
-        uint256 latestMinorVersion = latestMinorVersions[key][majorVersion];
-        if (latestMinorVersion == 0) revert VersionNotFoundException();
-        return latestMinorVersion;
+    /// @notice Returns all saved entries
+    function getAllEntries() external view override returns (AddressProviderEntry[] memory entries) {
+        uint256 numKeys = _keysSet.length();
+
+        uint256 numEntries;
+        for (uint256 i; i < numKeys; ++i) {
+            numEntries += _versionInfo[_keysSet.at(i)].versionsSet.length();
+        }
+
+        entries = new AddressProviderEntry[](numEntries);
+        uint256 idx;
+        for (uint256 i; i < numKeys; ++i) {
+            bytes32 key = _keysSet.at(i);
+            VersionInfo storage info = _versionInfo[key];
+            uint256 numVersions = info.versionsSet.length();
+            for (uint256 j; j < numVersions; ++j) {
+                uint256 ver = info.versionsSet.at(j);
+                entries[idx++] = AddressProviderEntry(key, ver, _addresses[key][ver]);
+            }
+        }
     }
 
-    function getLatestPatchVersion(string memory key, uint256 minorVersion) external view override returns (uint256) {
-        minorVersion -= minorVersion % 10;
-        uint256 latestPatchVersion = latestPatchVersions[key][minorVersion];
-        if (latestPatchVersion == 0) revert VersionNotFoundException();
-        return latestPatchVersion;
+    /// @notice Returns the latest version for given `key` (excluding `NO_VERSION_CONTROL`)
+    /// @dev Reverts if `key` has no versions except `NO_VERSION_CONTROL`
+    function getLatestVersion(bytes32 key) external view override returns (uint256 ver) {
+        ver = _versionInfo[key].latest;
+        if (ver == 0) revert VersionNotFoundException(key);
     }
 
-    /// @notice Sets the address for the passed contract key
-    /// @param key Contract key
-    /// @param value Contract address
-    /// @param saveVersion Whether to save contract's version
-    function setAddress(string memory key, address value, bool saveVersion) external override onlyOwner {
-        _setAddress(key, value, saveVersion ? IVersion(value).version() : NO_VERSION_CONTROL);
+    /// @notice Returns the latest minor version for given `majorVersion`
+    /// @dev Reverts if `majorVersion` is less than `100`
+    /// @dev Reverts if `key` has no entries with matching `majorVersion`
+    function getLatestMinorVersion(bytes32 key, uint256 majorVersion) external view override returns (uint256 ver) {
+        _validateVersion(key, majorVersion);
+        ver = _versionInfo[key].latestByMajor[_getMajorVersion(majorVersion)];
+        if (ver == 0) revert VersionNotFoundException(key);
     }
 
+    /// @notice Returns the latest patch version for given `minorVersion`
+    /// @dev Reverts if `minorVersion` is less than `100`
+    /// @dev Reverts if `key` has no entries with matching `minorVersion`
+    function getLatestPatchVersion(bytes32 key, uint256 minorVersion) external view override returns (uint256 ver) {
+        _validateVersion(key, minorVersion);
+        ver = _versionInfo[key].latestByMinor[_getMinorVersion(minorVersion)];
+        if (ver == 0) revert VersionNotFoundException(key);
+    }
+
+    // ------------- //
+    // CONFIGURATION //
+    // ------------- //
+
+    /// @notice Sets the address for given `key` to `value`, optionally saving contract's version
+    /// @dev Reverts if caller is not the owner
+    /// @dev Reverts if `value` is zero address
+    /// @dev If `saveVersion` is true, reverts if version is less than 100
     function setAddress(bytes32 key, address value, bool saveVersion) external override onlyOwner {
-        _setAddress(key.fromSmallString(), value, saveVersion ? IVersion(value).version() : NO_VERSION_CONTROL);
-    }
-
-    /// @notice Sets the address for the passed contract key
-    /// @param addr Contract address
-    /// @param saveVersion Whether to save contract's version
-    function setAddress(address addr, bool saveVersion) external override onlyOwner {
-        _setAddress(
-            IVersion(addr).contractType().fromSmallString(),
-            addr,
-            saveVersion ? IVersion(addr).version() : NO_VERSION_CONTROL
-        );
-    }
-
-    /// @dev Implementation of `setAddress`
-    function _setAddress(string memory key, address value, uint256 _version) internal virtual {
-        addresses[key][_version] = value;
-        uint256 latestVersion = latestVersions[key];
-
-        // FIXME: we might update a non-latest minor version with a patch and this will be incorrectly skipped
-        if (_version > latestVersion) {
-            latestVersions[key] = _version;
-            uint256 majorVersion = _version / 100 * 100;
-            uint256 minorVersion = _version / 10 * 10;
-            latestMinorVersions[key][majorVersion] = _version;
-            latestPatchVersions[key][minorVersion] = _version;
+        if (value == address(0)) revert ZeroAddressException(key);
+        uint256 ver = NO_VERSION_CONTROL;
+        if (saveVersion) {
+            ver = IVersion(value).version();
+            _validateVersion(key, ver);
         }
-        contractKeys.push(ContractKey(key, _version));
 
-        emit SetAddress(key, _version, value);
+        if (_addresses[key][ver] == value) return;
+        _keysSet.add(key);
+        VersionInfo storage info = _versionInfo[key];
+        info.versionsSet.add(ver);
+        _addresses[key][ver] = value;
+        emit SetAddress(key, ver, value);
+
+        if (ver == NO_VERSION_CONTROL) return;
+        if (ver > info.latest) info.latest = ver;
+        uint256 majorVersion = _getMajorVersion(ver);
+        if (ver > info.latestByMajor[majorVersion]) info.latestByMajor[majorVersion] = ver;
+        uint256 minorVersion = _getMinorVersion(ver);
+        if (ver > info.latestByMinor[minorVersion]) info.latestByMinor[minorVersion] = ver;
     }
 
-    function getAllSavedContracts() external view returns (ContractValue[] memory) {
-        ContractValue[] memory result = new ContractValue[](contractKeys.length);
-        for (uint256 i = 0; i < contractKeys.length; i++) {
-            result[i] = ContractValue(
-                contractKeys[i].key, addresses[contractKeys[i].key][contractKeys[i].version], contractKeys[i].version
-            );
-        }
-        return result;
+    // --------- //
+    // INTERNALS //
+    // --------- //
+
+    /// @dev Returns the major version of a given version
+    function _getMajorVersion(uint256 ver) internal pure returns (uint256) {
+        return ver - ver % 100;
+    }
+
+    /// @dev Returns the minor version of a given version
+    function _getMinorVersion(uint256 ver) internal pure returns (uint256) {
+        return ver - ver % 10;
+    }
+
+    function _validateVersion(bytes32 key, uint256 ver) internal view {
+        if (ver < 100) revert InvalidVersionException(key, ver);
     }
 }

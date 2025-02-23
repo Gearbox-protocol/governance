@@ -7,36 +7,41 @@ import {IAddressProvider as IAddressProviderBase} from
     "@gearbox-protocol/core-v3/contracts/interfaces/base/IAddressProvider.sol";
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {IImmutableOwnableTrait} from "./base/IImmutableOwnableTrait.sol";
-
-struct ContractValue {
-    string key;
-    address value;
-    uint256 version;
-}
+import {AddressProviderEntry} from "./Types.sol";
 
 /// @title Address provider interface
 interface IAddressProvider is IAddressProviderBase, IVersion, IImmutableOwnableTrait {
-    event SetAddress(string indexed key, uint256 indexed version, address indexed value);
+    // ------ //
+    // EVENTS //
+    // ------ //
 
-    function addresses(string memory key, uint256 _version) external view returns (address);
+    event SetAddress(bytes32 indexed key, uint256 indexed ver, address indexed value);
 
-    function getAddressOrRevert(string memory key, uint256 _version) external view returns (address);
+    // ------ //
+    // ERRORS //
+    // ------ //
 
-    function getAllSavedContracts() external view returns (ContractValue[] memory);
+    error AddressNotFoundException(bytes32 key, uint256 ver);
+    error InvalidVersionException(bytes32 key, uint256 ver);
+    error VersionNotFoundException(bytes32 key);
+    error ZeroAddressException(bytes32 key);
 
-    function getLatestVersion(string memory key) external view returns (uint256);
+    // ------- //
+    // GETTERS //
+    // ------- //
 
-    function getLatestMinorVersion(string memory key, uint256 majorVersion) external view returns (uint256);
-
-    function getLatestPatchVersion(string memory key, uint256 minorVersion) external view returns (uint256);
+    function getAddress(bytes32 key, uint256 ver) external view returns (address);
+    function getAddressOrRevert(bytes32 key, uint256 ver) external view override returns (address);
+    function getKeys() external view returns (bytes32[] memory);
+    function getVersions(bytes32 key) external view returns (uint256[] memory);
+    function getAllEntries() external view returns (AddressProviderEntry[] memory);
+    function getLatestVersion(bytes32 key) external view returns (uint256);
+    function getLatestMinorVersion(bytes32 key, uint256 majorVersion) external view returns (uint256);
+    function getLatestPatchVersion(bytes32 key, uint256 minorVersion) external view returns (uint256);
 
     // ------------- //
     // CONFIGURATION //
     // ------------- //
 
-    function setAddress(string memory key, address addr, bool saveVersion) external;
-
     function setAddress(bytes32 key, address value, bool saveVersion) external;
-
-    function setAddress(address addr, bool saveVersion) external;
 }

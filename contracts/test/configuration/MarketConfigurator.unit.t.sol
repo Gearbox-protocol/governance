@@ -471,7 +471,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(newFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("POOL_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(newFactory, true);
+        IAddressProvider(addressProvider).setAddress("POOL_FACTORY", newFactory, true);
 
         // Expect factory authorization changes
         vm.expectEmit(true, true, true, true);
@@ -507,7 +507,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(patchFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("POOL_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(patchFactory, true);
+        IAddressProvider(addressProvider).setAddress("POOL_FACTORY", patchFactory, true);
 
         vm.prank(admin);
         marketConfigurator.upgradePoolFactory(address(pool));
@@ -531,7 +531,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(newFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("CREDIT_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(newFactory, true);
+        IAddressProvider(addressProvider).setAddress("CREDIT_FACTORY", newFactory, true);
 
         // Expect factory authorization changes
         vm.expectEmit(true, true, true, true);
@@ -567,7 +567,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(patchFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("CREDIT_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(patchFactory, true);
+        IAddressProvider(addressProvider).setAddress("CREDIT_FACTORY", patchFactory, true);
 
         vm.prank(admin);
         marketConfigurator.upgradeCreditFactory(address(creditManager));
@@ -591,7 +591,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(newFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("PRICE_ORACLE_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(newFactory, true);
+        IAddressProvider(addressProvider).setAddress("PRICE_ORACLE_FACTORY", newFactory, true);
 
         // Expect factory authorization changes
         vm.expectEmit(true, true, true, true);
@@ -624,7 +624,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         );
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(patchFactory, true);
+        IAddressProvider(addressProvider).setAddress("PRICE_ORACLE_FACTORY", patchFactory, true);
 
         vm.prank(admin);
         marketConfigurator.upgradePriceOracleFactory(address(pool));
@@ -653,7 +653,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         );
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(newFactory, true);
+        IAddressProvider(addressProvider).setAddress("INTEREST_RATE_MODEL_FACTORY", newFactory, true);
 
         // Expect factory authorization changes
         vm.expectEmit(true, true, true, true);
@@ -686,7 +686,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         );
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(patchFactory, true);
+        IAddressProvider(addressProvider).setAddress("INTEREST_RATE_MODEL_FACTORY", patchFactory, true);
 
         vm.prank(admin);
         marketConfigurator.upgradeInterestRateModelFactory(address(pool));
@@ -714,7 +714,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(newFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("RATE_KEEPER_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(newFactory, true);
+        IAddressProvider(addressProvider).setAddress("RATE_KEEPER_FACTORY", newFactory, true);
 
         // Expect factory authorization changes
         vm.expectEmit(true, true, true, true);
@@ -745,7 +745,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(patchFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("RATE_KEEPER_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(patchFactory, true);
+        IAddressProvider(addressProvider).setAddress("RATE_KEEPER_FACTORY", patchFactory, true);
 
         vm.prank(admin);
         marketConfigurator.upgradeRateKeeperFactory(address(pool));
@@ -771,7 +771,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(newFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("LOSS_POLICY_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(newFactory, true);
+        IAddressProvider(addressProvider).setAddress("LOSS_POLICY_FACTORY", newFactory, true);
 
         // Expect factory authorization changes
         vm.expectEmit(true, true, true, true);
@@ -802,7 +802,7 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         vm.mockCall(patchFactory, abi.encodeWithSignature("contractType()"), abi.encode(bytes32("LOSS_POLICY_FACTORY")));
 
         vm.prank(Ownable(addressProvider).owner());
-        IAddressProvider(addressProvider).setAddress(patchFactory, true);
+        IAddressProvider(addressProvider).setAddress("LOSS_POLICY_FACTORY", patchFactory, true);
 
         vm.prank(admin);
         marketConfigurator.upgradeLossPolicyFactory(address(pool));
