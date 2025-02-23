@@ -22,7 +22,6 @@ import {Call, MarketFactories} from "../../interfaces/Types.sol";
 import {
     AP_MARKET_CONFIGURATOR_LEGACY,
     AP_CROSS_CHAIN_GOVERNANCE_PROXY,
-    DOMAIN_BOT,
     DOMAIN_ZAPPER,
     NO_VERSION_CONTROL,
     ROLE_EMERGENCY_LIQUIDATOR,
@@ -58,6 +57,11 @@ interface IZapperRegisterLegacy {
     function zappers(address pool) external view returns (address[] memory);
 }
 
+struct PeripheryContract {
+    bytes32 domain;
+    address addr;
+}
+
 struct LegacyParams {
     address acl;
     address contractsRegister;
@@ -66,7 +70,7 @@ struct LegacyParams {
     address[] pausableAdmins;
     address[] unpausableAdmins;
     address[] emergencyLiquidators;
-    address[] bots;
+    PeripheryContract[] peripheryContracts;
 }
 
 contract MarketConfiguratorLegacy is MarketConfigurator {
@@ -187,10 +191,11 @@ contract MarketConfiguratorLegacy is MarketConfigurator {
             }
         }
 
-        uint256 numBots = legacyParams_.bots.length;
-        for (uint256 i; i < numBots; ++i) {
-            _peripheryContracts[DOMAIN_BOT].add(legacyParams_.bots[i]);
-            emit AddPeripheryContract(DOMAIN_BOT, legacyParams_.bots[i]);
+        uint256 numPeripheryContracts = legacyParams_.peripheryContracts.length;
+        for (uint256 i; i < numPeripheryContracts; ++i) {
+            PeripheryContract memory pc = legacyParams_.peripheryContracts[i];
+            _peripheryContracts[pc.domain].add(pc.addr);
+            emit AddPeripheryContract(pc.domain, pc.addr);
         }
     }
 
@@ -267,6 +272,12 @@ contract MarketConfiguratorLegacy is MarketConfigurator {
 
     function configureGearStaking(bytes calldata data) external onlyCrossChainGovernanceProxy {
         gearStakingLegacy.functionCall(data);
+    }
+
+    function removeLegacyPeripheryContract(bytes32 domain, address peripheryContract) external onlyAdmin {
+        if (_peripheryContracts[domain].remove(peripheryContract)) {
+            emit RemovePeripheryContract(domain, peripheryContract);
+        }
     }
 
     // --------- //

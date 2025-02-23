@@ -36,6 +36,7 @@ import {
     AP_INTEREST_RATE_MODEL_LINEAR,
     AP_RATE_KEEPER_TUMBLER,
     AP_RATE_KEEPER_GAUGE,
+    AP_LOSS_POLICY_ALIASED,
     AP_LOSS_POLICY_DEFAULT,
     AP_CREDIT_MANAGER,
     AP_CREDIT_FACADE,
@@ -59,6 +60,7 @@ import {TreasurySplitter} from "../../market/TreasurySplitter.sol";
 
 // Core contracts
 import {BotListV3} from "@gearbox-protocol/core-v3/contracts/core/BotListV3.sol";
+import {AliasedLossPolicyV3} from "@gearbox-protocol/core-v3/contracts/core/AliasedLossPolicyV3.sol";
 import {GearStakingV3} from "@gearbox-protocol/core-v3/contracts/core/GearStakingV3.sol";
 import {PoolV3} from "@gearbox-protocol/core-v3/contracts/pool/PoolV3.sol";
 import {PoolQuotaKeeperV3} from "@gearbox-protocol/core-v3/contracts/pool/PoolQuotaKeeperV3.sol";
@@ -202,7 +204,7 @@ contract GlobalSetup is Test, InstanceManagerHelper {
     }
 
     function _exportJson() internal {
-         // Store address manager state as JSON
+        // Store address manager state as JSON
         string memory json = vm.serializeAddress("addresses", "instanceManager", address(instanceManager));
         json = vm.serializeAddress("addresses", "bytecodeRepository", address(bytecodeRepository));
         json = vm.serializeAddress("addresses", "multisig", address(multisig));
@@ -340,6 +342,14 @@ contract GlobalSetup is Test, InstanceManagerHelper {
             UploadableContract({
                 initCode: type(DefaultLossPolicy).creationCode,
                 contractType: AP_LOSS_POLICY_DEFAULT,
+                version: 3_10
+            })
+        );
+
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(AliasedLossPolicyV3).creationCode,
+                contractType: AP_LOSS_POLICY_ALIASED,
                 version: 3_10
             })
         );
