@@ -5,18 +5,8 @@
 export const addressProviderAbi = [
   {
     type: 'constructor',
-    inputs: [{ name: '_owner', internalType: 'address', type: 'address' }],
+    inputs: [{ name: 'owner_', internalType: 'address', type: 'address' }],
     stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: '', internalType: 'string', type: 'string' },
-      { name: '', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'addresses',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -28,18 +18,18 @@ export const addressProviderAbi = [
   {
     type: 'function',
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
-      { name: '_version', internalType: 'uint256', type: 'uint256' },
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'ver', internalType: 'uint256', type: 'uint256' },
     ],
-    name: 'getAddressOrRevert',
-    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    name: 'getAddress',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
     inputs: [
       { name: 'key', internalType: 'bytes32', type: 'bytes32' },
-      { name: '_version', internalType: 'uint256', type: 'uint256' },
+      { name: 'ver', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'getAddressOrRevert',
     outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
@@ -48,16 +38,16 @@ export const addressProviderAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'getAllSavedContracts',
+    name: 'getAllEntries',
     outputs: [
       {
-        name: '',
-        internalType: 'struct ContractValue[]',
+        name: 'entries',
+        internalType: 'struct AddressProviderEntry[]',
         type: 'tuple[]',
         components: [
-          { name: 'key', internalType: 'string', type: 'string' },
+          { name: 'key', internalType: 'bytes32', type: 'bytes32' },
+          { name: 'ver', internalType: 'uint256', type: 'uint256' },
           { name: 'value', internalType: 'address', type: 'address' },
-          { name: 'version', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -65,56 +55,43 @@ export const addressProviderAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'getKeys',
+    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
       { name: 'majorVersion', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'getLatestMinorVersion',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    outputs: [{ name: 'ver', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
       { name: 'minorVersion', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'getLatestPatchVersion',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    outputs: [{ name: 'ver', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [{ name: 'key', internalType: 'string', type: 'string' }],
+    inputs: [{ name: 'key', internalType: 'bytes32', type: 'bytes32' }],
     name: 'getLatestVersion',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    outputs: [{ name: 'ver', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [
-      { name: '', internalType: 'string', type: 'string' },
-      { name: '', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'latestMinorVersions',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: '', internalType: 'string', type: 'string' },
-      { name: '', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'latestPatchVersions',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '', internalType: 'string', type: 'string' }],
-    name: 'latestVersions',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    inputs: [{ name: 'key', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'getVersions',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
     stateMutability: 'view',
   },
   {
@@ -123,27 +100,6 @@ export const addressProviderAbi = [
     name: 'owner',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
-      { name: 'value', internalType: 'address', type: 'address' },
-      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
-    ],
-    name: 'setAddress',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: 'addr', internalType: 'address', type: 'address' },
-      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
-    ],
-    name: 'setAddress',
-    outputs: [],
-    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -167,13 +123,8 @@ export const addressProviderAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string', indexed: true },
-      {
-        name: 'version',
-        internalType: 'uint256',
-        type: 'uint256',
-        indexed: true,
-      },
+      { name: 'key', internalType: 'bytes32', type: 'bytes32', indexed: true },
+      { name: 'ver', internalType: 'uint256', type: 'uint256', indexed: true },
       {
         name: 'value',
         internalType: 'address',
@@ -183,13 +134,37 @@ export const addressProviderAbi = [
     ],
     name: 'SetAddress',
   },
-  { type: 'error', inputs: [], name: 'AddressNotFoundException' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'ver', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'AddressNotFoundException',
+  },
   {
     type: 'error',
     inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
     name: 'CallerIsNotOwnerException',
   },
-  { type: 'error', inputs: [], name: 'VersionNotFoundException' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'ver', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'InvalidVersionException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'key', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'VersionNotFoundException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'key', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'ZeroAddressException',
+  },
 ]
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -314,6 +289,269 @@ export const defaultLossPolicyAbi = [
   },
   { type: 'error', inputs: [], name: 'CallerNotConfiguratorException' },
   { type: 'error', inputs: [], name: 'ZeroAddressException' },
+]
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IAliasedLossPolicyV3
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iAliasedLossPolicyV3Abi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'accessMode',
+    outputs: [
+      { name: '', internalType: 'enum ILossPolicy.AccessMode', type: 'uint8' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'acl',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'checksEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'contractType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'getAliasPriceFeedParams',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct PriceFeedParams',
+        type: 'tuple',
+        components: [
+          { name: 'priceFeed', internalType: 'address', type: 'address' },
+          { name: 'stalenessPeriod', internalType: 'uint32', type: 'uint32' },
+          { name: 'skipCheck', internalType: 'bool', type: 'bool' },
+          { name: 'tokenDecimals', internalType: 'uint8', type: 'uint8' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'creditAccount', internalType: 'address', type: 'address' },
+    ],
+    name: 'getRequiredAliasPriceFeeds',
+    outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getTokensWithAlias',
+    outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'creditAccount', internalType: 'address', type: 'address' },
+      { name: 'caller', internalType: 'address', type: 'address' },
+      {
+        name: 'params',
+        internalType: 'struct ILossPolicy.Params',
+        type: 'tuple',
+        components: [
+          { name: 'totalDebtUSD', internalType: 'uint256', type: 'uint256' },
+          { name: 'twvUSD', internalType: 'uint256', type: 'uint256' },
+          { name: 'extraData', internalType: 'bytes', type: 'bytes' },
+        ],
+      },
+    ],
+    name: 'isLiquidatableWithLoss',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'pool',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'priceFeedStore',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'serialize',
+    outputs: [{ name: 'serializedData', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'mode',
+        internalType: 'enum ILossPolicy.AccessMode',
+        type: 'uint8',
+      },
+    ],
+    name: 'setAccessMode',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'priceFeed', internalType: 'address', type: 'address' },
+    ],
+    name: 'setAliasPriceFeed',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'enabled', internalType: 'bool', type: 'bool' }],
+    name: 'setChecksEnabled',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'underlying',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'version',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'mode',
+        internalType: 'enum ILossPolicy.AccessMode',
+        type: 'uint8',
+        indexed: false,
+      },
+    ],
+    name: 'SetAccessMode',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'priceFeed',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'stalenessPeriod',
+        internalType: 'uint32',
+        type: 'uint32',
+        indexed: false,
+      },
+      { name: 'skipCheck', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'SetAliasPriceFeed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'enabled', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'SetChecksEnabled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'UnsetAliasPriceFeed',
+  },
+]
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IAliasedLossPolicyV3Events
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iAliasedLossPolicyV3EventsAbi = [
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'priceFeed',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'stalenessPeriod',
+        internalType: 'uint32',
+        type: 'uint32',
+        indexed: false,
+      },
+      { name: 'skipCheck', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'SetAliasPriceFeed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'UnsetAliasPriceFeed',
+  },
 ]
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1223,6 +1461,13 @@ export const iCrossChainMultisigAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'disableRecoveryMode',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'domainSeparatorV4',
     outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
     stateMutability: 'view',
@@ -1231,54 +1476,29 @@ export const iCrossChainMultisigAbi = [
     type: 'function',
     inputs: [
       {
-        name: 'proposal',
-        internalType: 'struct SignedProposal',
+        name: 'message',
+        internalType: 'struct SignedRecoveryModeMessage',
         type: 'tuple',
         components: [
-          { name: 'name', internalType: 'string', type: 'string' },
-          { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
           {
-            name: 'calls',
-            internalType: 'struct CrossChainCall[]',
-            type: 'tuple[]',
-            components: [
-              { name: 'chainId', internalType: 'uint256', type: 'uint256' },
-              { name: 'target', internalType: 'address', type: 'address' },
-              { name: 'callData', internalType: 'bytes', type: 'bytes' },
-            ],
+            name: 'startingBatchHash',
+            internalType: 'bytes32',
+            type: 'bytes32',
           },
           { name: 'signatures', internalType: 'bytes[]', type: 'bytes[]' },
         ],
       },
     ],
-    name: 'executeProposal',
+    name: 'enableRecoveryMode',
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'getCurrentProposalHashes',
-    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'getExecutedProposalHashes',
-    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [
-      { name: 'proposalHash', internalType: 'bytes32', type: 'bytes32' },
-    ],
-    name: 'getProposal',
-    outputs: [
       {
-        name: '',
-        internalType: 'struct SignedProposal',
+        name: 'batch',
+        internalType: 'struct SignedBatch',
         type: 'tuple',
         components: [
           { name: 'name', internalType: 'string', type: 'string' },
@@ -1297,6 +1517,50 @@ export const iCrossChainMultisigAbi = [
         ],
       },
     ],
+    name: 'executeBatch',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'batchHash', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'getBatch',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct SignedBatch',
+        type: 'tuple',
+        components: [
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
+          {
+            name: 'calls',
+            internalType: 'struct CrossChainCall[]',
+            type: 'tuple[]',
+            components: [
+              { name: 'chainId', internalType: 'uint256', type: 'uint256' },
+              { name: 'target', internalType: 'address', type: 'address' },
+              { name: 'callData', internalType: 'bytes', type: 'bytes' },
+            ],
+          },
+          { name: 'signatures', internalType: 'bytes[]', type: 'bytes[]' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getCurrentBatchHashes',
+    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getExecutedBatchHashes',
+    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
     stateMutability: 'view',
   },
   {
@@ -1322,7 +1586,7 @@ export const iCrossChainMultisigAbi = [
       },
       { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
     ],
-    name: 'hashProposal',
+    name: 'hashBatch',
     outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
     stateMutability: 'view',
   },
@@ -1336,7 +1600,7 @@ export const iCrossChainMultisigAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'lastProposalHash',
+    name: 'lastBatchHash',
     outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
     stateMutability: 'view',
   },
@@ -1357,10 +1621,10 @@ export const iCrossChainMultisigAbi = [
   {
     type: 'function',
     inputs: [
-      { name: 'proposalHash', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'batchHash', internalType: 'bytes32', type: 'bytes32' },
       { name: 'signature', internalType: 'bytes', type: 'bytes' },
     ],
-    name: 'signProposal',
+    name: 'signBatch',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -1380,7 +1644,7 @@ export const iCrossChainMultisigAbi = [
       },
       { name: 'prevHash', internalType: 'bytes32', type: 'bytes32' },
     ],
-    name: 'submitProposal',
+    name: 'submitBatch',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -1404,18 +1668,32 @@ export const iCrossChainMultisigAbi = [
     ],
     name: 'AddSigner',
   },
+  { type: 'event', anonymous: false, inputs: [], name: 'DisableRecoveryMode' },
   {
     type: 'event',
     anonymous: false,
     inputs: [
       {
-        name: 'proposalHash',
+        name: 'startingBatchHash',
         internalType: 'bytes32',
         type: 'bytes32',
         indexed: true,
       },
     ],
-    name: 'ExecuteProposal',
+    name: 'EnableRecoveryMode',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'batchHash',
+        internalType: 'bytes32',
+        type: 'bytes32',
+        indexed: true,
+      },
+    ],
+    name: 'ExecuteBatch',
   },
   {
     type: 'event',
@@ -1448,7 +1726,7 @@ export const iCrossChainMultisigAbi = [
     anonymous: false,
     inputs: [
       {
-        name: 'proposalHash',
+        name: 'batchHash',
         internalType: 'bytes32',
         type: 'bytes32',
         indexed: true,
@@ -1460,22 +1738,23 @@ export const iCrossChainMultisigAbi = [
         indexed: true,
       },
     ],
-    name: 'SignProposal',
+    name: 'SignBatch',
   },
   {
     type: 'event',
     anonymous: false,
     inputs: [
       {
-        name: 'proposalHash',
+        name: 'batchHash',
         internalType: 'bytes32',
         type: 'bytes32',
         indexed: true,
       },
     ],
-    name: 'SubmitProposal',
+    name: 'SubmitBatch',
   },
   { type: 'error', inputs: [], name: 'AlreadySignedException' },
+  { type: 'error', inputs: [], name: 'BatchDoesNotExistException' },
   { type: 'error', inputs: [], name: 'CantBeExecutedOnCurrentChainException' },
   {
     type: 'error',
@@ -1488,11 +1767,11 @@ export const iCrossChainMultisigAbi = [
     name: 'InvalidConfirmationThresholdValueException',
   },
   { type: 'error', inputs: [], name: 'InvalidPrevHashException' },
+  { type: 'error', inputs: [], name: 'InvalidRecoveryModeMessageException' },
   { type: 'error', inputs: [], name: 'InvalidconfirmationThresholdException' },
   { type: 'error', inputs: [], name: 'NoCallsInProposalException' },
   { type: 'error', inputs: [], name: 'NotEnoughSignaturesException' },
   { type: 'error', inputs: [], name: 'OnlySelfException' },
-  { type: 'error', inputs: [], name: 'ProposalDoesNotExistException' },
   { type: 'error', inputs: [], name: 'SignerAlreadyExistsException' },
   { type: 'error', inputs: [], name: 'SignerDoesNotExistException' },
 ]
@@ -1893,6 +2172,13 @@ export const iGaugeV3EventsAbi = [
 export const iInstanceManagerAbi = [
   {
     type: 'function',
+    inputs: [],
+    name: 'acceptGovernance',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'instanceOwner', internalType: 'address', type: 'address' },
       { name: 'treasury', internalType: 'address', type: 'address' },
@@ -1995,8 +2281,15 @@ export const iInstanceManagerAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'pendingGovernance',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
       { name: 'addr', internalType: 'address', type: 'address' },
       { name: 'saveVersion', internalType: 'bool', type: 'bool' },
     ],
@@ -2007,22 +2300,20 @@ export const iInstanceManagerAbi = [
   {
     type: 'function',
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
+      { name: 'key', internalType: 'bytes32', type: 'bytes32' },
       { name: 'addr', internalType: 'address', type: 'address' },
       { name: 'saveVersion', internalType: 'bool', type: 'bool' },
     ],
-    name: 'setLegacyAddress',
+    name: 'setLocalAddress',
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
     inputs: [
-      { name: 'key', internalType: 'string', type: 'string' },
-      { name: 'addr', internalType: 'address', type: 'address' },
-      { name: 'saveVersion', internalType: 'bool', type: 'bool' },
+      { name: 'newGovernance', internalType: 'address', type: 'address' },
     ],
-    name: 'setLocalAddress',
+    name: 'setPendingGovernance',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -2039,6 +2330,52 @@ export const iInstanceManagerAbi = [
     name: 'version',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newGovernance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'AcceptGovernance',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newGovernance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'SetPendingGovernance',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotCrossChainGovernanceException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotPendingGovernanceException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
+    name: 'CallerIsNotTreasuryException',
+  },
+  {
+    type: 'error',
+    inputs: [{ name: 'key', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'InvalidKeyException',
   },
 ]
 
@@ -3273,9 +3610,23 @@ export const iMarketConfiguratorFactoryAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'index', internalType: 'uint256', type: 'uint256' }],
+    name: 'getMarketConfigurator',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'getMarketConfigurators',
     outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getNumMarketConfigurators',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -3337,11 +3688,6 @@ export const iMarketConfiguratorFactoryAbi = [
   },
   {
     type: 'error',
-    inputs: [{ name: 'addr', internalType: 'address', type: 'address' }],
-    name: 'AddressIsNotMarketConfiguratorException',
-  },
-  {
-    type: 'error',
     inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
     name: 'CallerIsNotCrossChainGovernanceException',
   },
@@ -3352,12 +3698,9 @@ export const iMarketConfiguratorFactoryAbi = [
   },
   {
     type: 'error',
-    inputs: [{ name: 'caller', internalType: 'address', type: 'address' }],
-    name: 'CallerIsNotMarketConfiguratorException',
-  },
-  {
-    type: 'error',
-    inputs: [],
+    inputs: [
+      { name: 'marketConfigurator', internalType: 'address', type: 'address' },
+    ],
     name: 'CantShutdownMarketConfiguratorException',
   },
   {
@@ -3373,6 +3716,13 @@ export const iMarketConfiguratorFactoryAbi = [
       { name: 'marketConfigruator', internalType: 'address', type: 'address' },
     ],
     name: 'MarketConfiguratorIsAlreadyShutdownException',
+  },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'marketConfigurator', internalType: 'address', type: 'address' },
+    ],
+    name: 'MarketConfiguratorIsNotRegisteredException',
   },
 ]
 
@@ -3814,7 +4164,6 @@ export const priceFeedStoreAbi = [
         internalType: 'struct PriceFeedInfo',
         type: 'tuple',
         components: [
-          { name: 'author', internalType: 'address', type: 'address' },
           { name: 'name', internalType: 'string', type: 'string' },
           { name: 'stalenessPeriod', internalType: 'uint32', type: 'uint32' },
           { name: 'priceFeedType', internalType: 'bytes32', type: 'bytes32' },
@@ -3823,6 +4172,13 @@ export const priceFeedStoreAbi = [
       },
     ],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'priceFeed', internalType: 'address', type: 'address' }],
+    name: 'removePriceFeed',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -3935,6 +4291,19 @@ export const priceFeedStoreAbi = [
       },
     ],
     name: 'ForbidPriceFeed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'priceFeed',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'RemovePriceFeed',
   },
   {
     type: 'event',
