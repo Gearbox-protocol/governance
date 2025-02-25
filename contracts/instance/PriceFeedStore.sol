@@ -293,7 +293,7 @@ contract PriceFeedStore is
     /// @dev Returns whether `priceFeed` is deployed externally or via BCR.
     ///      For latter case, also ensures that price feed is owned by the store.
     function _validatePriceFeedDeployment(address priceFeed) internal view returns (bool) {
-        if (IBytecodeRepository(bytecodeRepository).deployedContracts(priceFeed) == 0) return true;
+        if (!IBytecodeRepository(bytecodeRepository).isDeployedFromRepository(priceFeed)) return true;
 
         try Ownable(priceFeed).owner() returns (address owner_) {
             if (owner_ != address(this)) revert PriceFeedIsNotOwnedByStore(priceFeed);

@@ -899,7 +899,7 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
     /// @dev Reverts if caller is not the admin
     /// @dev Reverts if contract is not deployed via bytecode repository
     function addPeripheryContract(address peripheryContract) external override onlyAdmin {
-        if (IBytecodeRepository(bytecodeRepository).deployedContracts(peripheryContract) == 0) {
+        if (!IBytecodeRepository(bytecodeRepository).isDeployedFromRepository(peripheryContract)) {
             revert IncorrectPeripheryContractException(peripheryContract);
         }
         bytes32 domain = _getDomain(peripheryContract);

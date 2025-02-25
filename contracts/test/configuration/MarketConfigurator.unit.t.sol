@@ -328,7 +328,9 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
 
         // Mock bytecode repository to recognize the contract
         vm.mockCall(
-            bytecodeRepository, abi.encodeWithSignature("deployedContracts(address)", peripheryContract), abi.encode(1)
+            bytecodeRepository,
+            abi.encodeWithSignature("isDeployedFromRepository(address)", peripheryContract),
+            abi.encode(true)
         );
 
         // Test that only admin can add periphery contracts
@@ -372,8 +374,11 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
 
         // Test adding contract that's not in bytecode repository
         vm.mockCall(
-            bytecodeRepository, abi.encodeWithSignature("deployedContracts(address)", peripheryContract), abi.encode(0)
+            bytecodeRepository,
+            abi.encodeWithSignature("isDeployedFromRepository(address)", peripheryContract),
+            abi.encode(false)
         );
+
         vm.prank(admin);
         vm.expectRevert(
             abi.encodeWithSelector(IMarketConfigurator.IncorrectPeripheryContractException.selector, peripheryContract)
@@ -383,7 +388,9 @@ contract MarketConfiguratorUnitTest is ConfigurationTestHelper {
         // Test adding contract that doesn't implement IVersion
         address invalidContract = address(new GeneralMock());
         vm.mockCall(
-            bytecodeRepository, abi.encodeWithSignature("deployedContracts(address)", invalidContract), abi.encode(1)
+            bytecodeRepository,
+            abi.encodeWithSignature("isDeployedFromRepository(address)", peripheryContract),
+            abi.encode(true)
         );
         vm.prank(admin);
         vm.expectRevert(

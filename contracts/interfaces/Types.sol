@@ -9,27 +9,44 @@ struct AddressProviderEntry {
     address value;
 }
 
+struct AuditReport {
+    address auditor;
+    string reportUrl;
+    bytes signature;
+}
+
+struct Bytecode {
+    bytes32 contractType;
+    uint256 version;
+    bytes initCode;
+    address author;
+    string source;
+    bytes authorSignature;
+}
+
+struct BytecodePointer {
+    bytes32 contractType;
+    uint256 version;
+    address initCodePointer;
+    address author;
+    string source;
+    bytes authorSignature;
+}
+
 struct Call {
     address target;
     bytes callData;
+}
+
+struct ConnectedPriceFeed {
+    address token;
+    address[] priceFeeds;
 }
 
 struct CrossChainCall {
     uint256 chainId; // 0 means to be executed on all chains
     address target;
     bytes callData;
-}
-
-struct SignedBatch {
-    string name;
-    bytes32 prevHash;
-    CrossChainCall[] calls;
-    bytes[] signatures;
-}
-
-struct SignedRecoveryModeMessage {
-    bytes32 startingBatchHash;
-    bytes[] signatures;
 }
 
 struct DeployParams {
@@ -58,33 +75,16 @@ struct PriceFeedInfo {
     uint256 version;
 }
 
-struct ConnectedPriceFeed {
-    address token;
-    address[] priceFeeds;
+struct SignedBatch {
+    string name;
+    bytes32 prevHash;
+    CrossChainCall[] calls;
+    bytes[] signatures;
 }
 
-struct Bytecode {
-    bytes32 contractType;
-    uint256 version;
-    bytes initCode;
-    address author;
-    string source;
-    bytes authorSignature;
-}
-
-struct BytecodePointer {
-    bytes32 contractType;
-    uint256 version;
-    address initCodePointer;
-    address author;
-    string source;
-    bytes authorSignature;
-}
-
-struct AuditorSignature {
-    string reportUrl;
-    address auditor;
-    bytes signature;
+struct SignedRecoveryModeMessage {
+    bytes32 startingBatchHash;
+    bytes[] signatures;
 }
 
 struct Split {

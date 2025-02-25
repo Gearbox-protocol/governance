@@ -65,7 +65,9 @@ contract PriceFeedStoreTest is Test {
             abi.encode(zeroPriceFeed)
         );
 
-        vm.mockCall(address(bytecodeRepository), abi.encodeWithSignature("deployedContracts(address)"), abi.encode(0));
+        vm.mockCall(
+            address(bytecodeRepository), abi.encodeWithSignature("isDeployedFromRepository(address)"), abi.encode(false)
+        );
 
         store = new PriceFeedStore(address(addressProvider));
         _markAsInternalPriceFeed(address(priceFeed));
@@ -74,8 +76,8 @@ contract PriceFeedStoreTest is Test {
     function _markAsInternalPriceFeed(address target) internal {
         vm.mockCall(
             address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", target),
-            abi.encode(keccak256(abi.encodePacked(target)))
+            abi.encodeWithSignature("isDeployedFromRepository(address)", target),
+            abi.encode(true)
         );
 
         vm.mockCall(address(target), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
@@ -475,16 +477,16 @@ contract PriceFeedStoreTest is Test {
         MockPriceFeed nonOwnableFeed = new MockPriceFeed();
         vm.mockCall(
             address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", address(nonOwnableFeed)),
-            abi.encode(keccak256(abi.encodePacked(address(nonOwnableFeed))))
+            abi.encodeWithSignature("isDeployedFromRepository(address)", address(nonOwnableFeed)),
+            abi.encode(true)
         );
 
         // Test Ownable feed owned by store (should pass)
         MockPriceFeed ownableFeed = new MockPriceFeed();
         vm.mockCall(
             address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", address(ownableFeed)),
-            abi.encode(keccak256(abi.encodePacked(address(ownableFeed))))
+            abi.encodeWithSignature("isDeployedFromRepository(address)", address(ownableFeed)),
+            abi.encode(true)
         );
         vm.mockCall(address(ownableFeed), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
 
@@ -492,8 +494,8 @@ contract PriceFeedStoreTest is Test {
         MockPriceFeed wrongOwnerFeed = new MockPriceFeed();
         vm.mockCall(
             address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", address(wrongOwnerFeed)),
-            abi.encode(keccak256(abi.encodePacked(address(wrongOwnerFeed))))
+            abi.encodeWithSignature("isDeployedFromRepository(address)", address(wrongOwnerFeed)),
+            abi.encode(true)
         );
         vm.mockCall(address(wrongOwnerFeed), abi.encodeWithSignature("owner()"), abi.encode(makeAddr("other")));
 
@@ -501,8 +503,8 @@ contract PriceFeedStoreTest is Test {
         MockPriceFeed ownable2StepFeed = new MockPriceFeed();
         vm.mockCall(
             address(bytecodeRepository),
-            abi.encodeWithSignature("deployedContracts(address)", address(ownable2StepFeed)),
-            abi.encode(keccak256(abi.encodePacked(address(ownable2StepFeed))))
+            abi.encodeWithSignature("isDeployedFromRepository(address)", address(ownable2StepFeed)),
+            abi.encode(true)
         );
         vm.mockCall(address(ownable2StepFeed), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
         vm.mockCall(

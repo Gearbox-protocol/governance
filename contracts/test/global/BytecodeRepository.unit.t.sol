@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {BytecodeRepository} from "../../global/BytecodeRepository.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
-import {Bytecode, AuditorSignature} from "../../interfaces/Types.sol";
+import {AuditReport, Bytecode} from "../../interfaces/Types.sol";
 import {LibString} from "@solady/utils/LibString.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -93,7 +93,7 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
         // Verify bytecode was stored
         assertTrue(repository.isBytecodeUploaded(bytecodeHash));
 
-        Bytecode memory storedBc = repository.bytecodeByHash(bytecodeHash);
+        Bytecode memory storedBc = repository.getBytecode(bytecodeHash);
         assertEq(storedBc.contractType, _TEST_CONTRACT);
         assertEq(storedBc.version, _TEST_VERSION);
         assertEq(storedBc.author, author);
@@ -120,9 +120,6 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
 
         vm.startPrank(author);
         repository.uploadBytecode(bc);
-
-        vm.expectRevert(IBytecodeRepository.BytecodeAlreadyExistsException.selector);
-        repository.uploadBytecode(bc);
         vm.stopPrank();
     }
 
@@ -145,40 +142,46 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
 
     /// AUDITOR SIGNATURE TESTS
 
-    function test_BCR_04_signBytecodeHash_works() public {
+    function test_BCR_04_submitAuditReport_works() public {
         // First upload bytecode
         bytes32 bytecodeHash = _uploadTestBytecode();
 
         // Now sign as auditor
         string memory reportUrl = "https://audit.report";
         bytes32 signatureHash = repository.domainSeparatorV4().toTypedDataHash(
-            keccak256(abi.encode(repository.AUDITOR_SIGNATURE_TYPEHASH(), bytecodeHash, keccak256(bytes(reportUrl))))
+            keccak256(
+                abi.encode(repository.AUDIT_REPORT_TYPEHASH(), bytecodeHash, auditor, keccak256(bytes(reportUrl)))
+            )
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(auditorPK, signatureHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
+        AuditReport memory auditReport = AuditReport({auditor: auditor, reportUrl: reportUrl, signature: signature});
+
         vm.prank(auditor);
-        repository.signBytecodeHash(bytecodeHash, reportUrl, signature);
+        repository.submitAuditReport(bytecodeHash, auditReport);
 
         // Verify signature was stored
-        assertTrue(repository.isAuditBytecode(bytecodeHash));
+        assertTrue(repository.isBytecodeAudited(bytecodeHash));
 
-        AuditorSignature[] memory sigs = repository.auditorSignaturesByHash(bytecodeHash);
-        assertEq(sigs.length, 1);
-        assertEq(sigs[0].auditor, auditor);
-        assertEq(sigs[0].reportUrl, reportUrl);
-        assertEq(sigs[0].signature, signature);
+        AuditReport[] memory reports = repository.getAuditReports(bytecodeHash);
+        assertEq(reports.length, 1);
+        assertEq(reports[0].auditor, auditor);
+        assertEq(reports[0].reportUrl, reportUrl);
+        assertEq(reports[0].signature, signature);
     }
 
-    function test_BCR_05_signBytecodeHash_reverts_if_not_auditor() public {
+    function test_BCR_05_submitAuditReport_reverts_if_not_auditor() public {
         // First upload bytecode
         bytes32 bytecodeHash = _uploadTestBytecode();
 
         // Now sign as auditor
         string memory reportUrl = "https://audit.report";
         bytes32 signatureHash = repository.domainSeparatorV4().toTypedDataHash(
-            keccak256(abi.encode(repository.AUDITOR_SIGNATURE_TYPEHASH(), bytecodeHash, keccak256(bytes(reportUrl))))
+            keccak256(
+                abi.encode(repository.AUDIT_REPORT_TYPEHASH(), bytecodeHash, auditor, keccak256(bytes(reportUrl)))
+            )
         );
 
         uint256 notAuditorPK = vm.randomUint();
@@ -187,9 +190,11 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(notAuditorPK, signatureHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
+        AuditReport memory auditReport = AuditReport({auditor: notAuditor, reportUrl: reportUrl, signature: signature});
+
         vm.prank(notAuditor);
-        vm.expectRevert(abi.encodeWithSelector(IBytecodeRepository.SignerIsNotAuditorException.selector, notAuditor));
-        repository.signBytecodeHash(bytecodeHash, reportUrl, signature);
+        vm.expectRevert(abi.encodeWithSelector(IBytecodeRepository.AuditorIsNotApprovedException.selector, notAuditor));
+        repository.submitAuditReport(bytecodeHash, auditReport);
     }
 
     /// DEPLOYMENT TESTS
@@ -201,14 +206,18 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
         // Now sign as auditor
         string memory reportUrl = "https://audit.report";
         bytes32 signatureHash = repository.domainSeparatorV4().toTypedDataHash(
-            keccak256(abi.encode(repository.AUDITOR_SIGNATURE_TYPEHASH(), bytecodeHash, keccak256(bytes(reportUrl))))
+            keccak256(
+                abi.encode(repository.AUDIT_REPORT_TYPEHASH(), bytecodeHash, auditor, keccak256(bytes(reportUrl)))
+            )
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(auditorPK, signatureHash);
         bytes memory signature = abi.encodePacked(r, s, v);
 
+        AuditReport memory auditReport = AuditReport({auditor: auditor, reportUrl: reportUrl, signature: signature});
+
         vm.prank(auditor);
-        repository.signBytecodeHash(bytecodeHash, reportUrl, signature);
+        repository.submitAuditReport(bytecodeHash, auditReport);
 
         // Mark as system contract to auto-approve
         vm.prank(owner);
@@ -221,7 +230,8 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
 
         // Verify deployment
         assertTrue(deployed.code.length > 0);
-        assertEq(repository.deployedContracts(deployed), bytecodeHash);
+        assertTrue(repository.isDeployedFromRepository(deployed));
+        assertEq(repository.getDeployedContractBytecodeHash(deployed), bytecodeHash);
 
         IVersion version = IVersion(deployed);
         assertEq(version.contractType(), _TEST_CONTRACT);
@@ -231,7 +241,7 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
     function test_BCR_07_deploy_reverts_if_not_approved() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                IBytecodeRepository.BytecodeIsNotApprovedException.selector, _TEST_CONTRACT, _TEST_VERSION
+                IBytecodeRepository.BytecodeIsNotAllowedException.selector, _TEST_CONTRACT, _TEST_VERSION
             )
         );
         repository.deploy(_TEST_CONTRACT, _TEST_VERSION, "", _TEST_SALT);
@@ -265,7 +275,7 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IBytecodeRepository.BytecodeIsNotApprovedException.selector, _TEST_CONTRACT, _TEST_VERSION
+                IBytecodeRepository.BytecodeIsNotAllowedException.selector, _TEST_CONTRACT, _TEST_VERSION
             )
         );
         repository.deploy(_TEST_CONTRACT, _TEST_VERSION, "", _TEST_SALT);

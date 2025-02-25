@@ -4,7 +4,7 @@
 pragma solidity ^0.8.23;
 
 import {SignatureHelper} from "./SignatureHelper.sol";
-import {Bytecode} from "../../interfaces/Types.sol";
+import {AuditReport, Bytecode} from "../../interfaces/Types.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
 import {console} from "forge-std/console.sol";
 import {LibString} from "@solady/utils/LibString.sol";
@@ -85,8 +85,9 @@ contract BCRHelpers is SignatureHelper {
         // Build auditor signature
         bytes32 signatureHash = keccak256(
             abi.encode(
-                keccak256("SignBytecodeHash(bytes32 bytecodeHash,string reportUrl)"),
+                keccak256("AuditReport(bytes32 bytecodeHash,address auditor,string reportUrl)"),
                 bytecodeHash,
+                auditor,
                 keccak256(bytes(reportUrl))
             )
         );
@@ -95,8 +96,10 @@ contract BCRHelpers is SignatureHelper {
         bytes memory signature =
             _sign(auditorKey, keccak256(abi.encodePacked("\x19\x01", _bytecodeDomainSeparator(), signatureHash)));
 
-        // Call signBytecodeHash with signature
-        IBytecodeRepository(bytecodeRepository).signBytecodeHash(bytecodeHash, reportUrl, signature);
+        AuditReport memory auditReport = AuditReport({auditor: auditor, reportUrl: reportUrl, signature: signature});
+
+        // Call submitAuditReport with signature
+        IBytecodeRepository(bytecodeRepository).submitAuditReport(bytecodeHash, auditReport);
     }
 
     function _bytecodeDomainSeparator() internal view returns (bytes32) {

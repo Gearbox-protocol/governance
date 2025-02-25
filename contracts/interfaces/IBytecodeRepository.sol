@@ -5,230 +5,152 @@ pragma solidity ^0.8.23;
 
 import {IVersion} from "@gearbox-protocol/core-v3/contracts/interfaces/base/IVersion.sol";
 import {IImmutableOwnableTrait} from "./base/IImmutableOwnableTrait.sol";
-import {Bytecode, AuditorSignature} from "./Types.sol";
+import {AuditReport, Bytecode} from "./Types.sol";
 
+/// @title Bytecode repository interface
 interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
-    //
-    // ERRORS
-    //
-    error BytecodeIsNotApprovedException(bytes32 contractType, uint256 version);
+    // ------ //
+    // EVENTS //
+    // ------ //
 
-    // Thrown if the deployed contract has a different contractType/version than it's indexed in the repository
-    error IncorrectBytecodeException(bytes32 bytecodeHash);
-
-    // Thrown if the bytecode provided is empty
-    error EmptyBytecodeException();
-
-    // Thrown if someone tries to deploy the contract with the same address
-    error BytecodeAlreadyExistsAtAddressException(address);
-
-    // Thrown if domain + postfix length is more than 30 symbols (doesn't fit into bytes32)
-    error TooLongContractTypeException(string);
-
-    //  Thrown if requested bytecode wasn't found in the repository
-    error BytecodeIsNotUploadedException(bytes32 bytecodeHash);
-
-    // Thrown if someone tries to replace existing bytecode with the same contact type & version
-    error BytecodeAlreadyExistsException();
-
-    // Thrown if requested bytecode wasn't found in the repository
-    error BytecodeIsNotAuditedException();
-
-    // Thrown if someone tries to deploy a contract which wasn't audited enough
-    error ContractIsNotAuditedException();
-
-    error SignerIsNotAuditorException(address signer);
-
-    // Thrown when an attempt is made to add an auditor that already exists
-    error AuditorAlreadyAddedException();
-
-    // Thrown when an auditor is not found in the repository
-    error AuditorNotFoundException();
-
-    // Thrown if the caller is not the deployer of the bytecode
-    error NotDeployerException();
-
-    // Thrown if the caller does not have valid auditor permissions
-    error NoValidAuditorPermissionsAException();
-
-    /// @notice Thrown when trying to deploy contract with forbidden bytecode
-    error BytecodeForbiddenException(bytes32 bytecodeHash);
-
-    /// @notice Thrown when trying to deploy contract with incorrect domain ownership
-    error NotDomainOwnerException();
-
-    /// @notice Thrown when trying to deploy contract with incorrect domain ownership
-    error NotAllowedSystemContractException(bytes32 bytecodeHash);
-
-    /// @notice Thrown when trying to deploy contract with incorrect contract type
-    error ContractTypeVersionAlreadyExistsException();
-
-    error OnlyAuthorCanSyncException();
-
-    error AuditorAlreadySignedException();
-
-    error NoValidAuditorSignatureException();
-
-    error InvalidAuthorSignatureException();
-    //
-    // EVENTS
-    //
-
-    // Emitted when new smart contract was deployed
-    event DeployContract(
-        address indexed addr, bytes32 indexed bytecodeHash, string contractType, uint256 indexed version
-    );
-
-    // Event emitted when a new auditor is added to the repository
     event AddAuditor(address indexed auditor, string name);
-
-    // Event emitted when an auditor is forbidden from the repository
+    event AddPublicDomain(bytes32 indexed domain);
+    event AuditBytecode(bytes32 indexed bytecodeHash, address indexed auditor, string reportUrl);
+    event DeployContract(
+        bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver, address contractAddress
+    );
+    event ForbidInitCode(bytes32 indexed initCodeHash);
     event RemoveAuditor(address indexed auditor);
-
-    // Event emitted when new bytecode is uploaded to the repository
+    event RemovePublicDomain(bytes32 indexed domain);
+    event SetTokenSpecificPostfix(address indexed token, bytes32 indexed postfix);
     event UploadBytecode(
-        bytes32 indexed bytecodeHash,
-        string contractType,
-        uint256 indexed version,
-        address indexed author,
-        string source
+        bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver, address author, string source
     );
 
-    // Event emitted when bytecode is signed by an auditor
-    event AuditBytecode(bytes32 indexed bytecodeHash, address indexed auditor, string reportUrl, bytes signature);
+    // ------ //
+    // ERRORS //
+    // ------ //
 
-    // Event emitted when a public domain is added
-    event AddPublicDomain(bytes32 indexed domain);
+    error AuditorIsNotApprovedException(address auditor);
+    error AuthorIsNotContractTypeOwnerException(bytes32 cType, address author);
+    error BytecodeIsAlreadyAllowedException(bytes32 cType, uint256 ver);
+    error BytecodeIsAlreadySignedByAuditorException(bytes32 bytecodeHash, address auditor);
+    error BytecodeIsNotAllowedException(bytes32 cType, uint256 ver);
+    error BytecodeIsNotUploadedException(bytes32 bytecodeHash);
+    error CallerIsNotBytecodeAuthorException(address caller);
+    error ContractIsAlreadyDeployedException(address deployedContract);
+    error InitCodeIsForbiddenException(bytes32 initCodeHash);
+    error InvalidAuditorSignatureException(address auditor);
+    error InvalidAuthorSignatureException(address author);
+    error InvalidBytecodeException(bytes32 bytecodeHash);
+    error InvalidVersionException(bytes32 cType, uint256 ver);
+    error VersionNotFoundException(bytes32 cType);
 
-    // Event emitted when a public domain is removed
-    event RemovePublicDomain(bytes32 indexed domain);
+    // --------------- //
+    // EIP-712 GETTERS //
+    // --------------- //
 
-    // Event emitted when contract type owner is removed
-    event RemoveContractTypeOwner(bytes32 indexed contractType);
-
-    // Event emitted when bytecode is forbidden
-    event ForbidBytecode(bytes32 indexed bytecodeHash);
-
-    // Event emitted when token specific postfix is set
-    event SetTokenSpecificPostfix(address indexed token, bytes32 indexed postfix);
-
-    // Event emitted when bytecode is approved
-    event ApproveContract(bytes32 indexed bytecodeHash, bytes32 indexed contractType, uint256 version);
-
-    // Event emitted when bytecode is revoked
-    event RevokeApproval(bytes32 indexed bytecodeHash, bytes32 indexed contractType, uint256 version);
-
-    // FUNCTIONS
-
-    function deploy(bytes32 type_, uint256 version_, bytes memory constructorParams, bytes32 salt)
+    function BYTECODE_TYPEHASH() external view returns (bytes32);
+    function AUDIT_REPORT_TYPEHASH() external view returns (bytes32);
+    function domainSeparatorV4() external view returns (bytes32);
+    function computeBytecodeHash(Bytecode calldata bytecode) external view returns (bytes32);
+    function computeAuditReportHash(bytes32 bytecodeHash, address auditor, string calldata reportUrl)
         external
-        returns (address);
+        view
+        returns (bytes32);
 
+    // ------------------- //
+    // DEPLOYING CONTRACTS //
+    // ------------------- //
+
+    function isDeployedFromRepository(address deployedContract) external view returns (bool);
+    function getDeployedContractBytecodeHash(address deployedContract) external view returns (bytes32);
     function computeAddress(
-        bytes32 type_,
-        uint256 version_,
-        bytes memory constructorParams,
+        bytes32 cType,
+        uint256 ver,
+        bytes calldata constructorParams,
         bytes32 salt,
         address deployer
     ) external view returns (address);
+    function deploy(bytes32 cType, uint256 ver, bytes calldata constructorParams, bytes32 salt)
+        external
+        returns (address);
 
-    function getTokenSpecificPostfix(address token) external view returns (bytes32);
+    // ------------------ //
+    // UPLOADING BYTECODE //
+    // ------------------ //
 
-    function getLatestVersion(bytes32 type_) external view returns (uint256);
-
-    function getLatestMinorVersion(bytes32 type_, uint256 majorVersion) external view returns (uint256);
-
-    function getLatestPatchVersion(bytes32 type_, uint256 minorVersion) external view returns (uint256);
-
-    /// @notice Computes a unique hash for bytecode metadata
-    function computeBytecodeHash(Bytecode calldata bytecode) external pure returns (bytes32);
-
-    /// @notice Uploads new bytecode to the repository
+    function getBytecode(bytes32 bytecodeHash) external view returns (Bytecode memory);
+    function isBytecodeUploaded(bytes32 bytecodeHash) external view returns (bool);
     function uploadBytecode(Bytecode calldata bytecode) external;
 
-    /// @notice Allows auditors to sign bytecode metadata
-    function signBytecodeHash(bytes32 bytecodeHash, string calldata reportUrl, bytes memory signature) external;
+    // ----------------- //
+    // AUDITING BYTECODE //
+    // ----------------- //
 
-    /// @notice Allows owner to mark contracts as system contracts
+    function isBytecodeAudited(bytes32 bytecodeHash) external view returns (bool);
+    function getAuditReports(bytes32 bytecodeHash) external view returns (AuditReport[] memory);
+    function getAuditReport(bytes32 bytecodeHash, uint256 index) external view returns (AuditReport memory);
+    function getNumAuditReports(bytes32 bytecodeHash) external view returns (uint256);
+    function submitAuditReport(bytes32 bytecodeHash, AuditReport calldata auditReport) external;
+
+    // ----------------- //
+    // ALLOWING BYTECODE //
+    // ----------------- //
+
+    // TODO: rework this section
+
+    event AllowBytecode(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
+    event ForbidBytecode(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
+    event SetContractTypeOwner(bytes32 indexed cType, address indexed owner);
+    event RemoveContractTypeOwner(bytes32 indexed cType);
+
+    function getAllowedBytecodeHash(bytes32 cType, uint256 ver) external view returns (bytes32);
+    function isAllowedSystemContract(bytes32 bytecodeHash) external view returns (bool);
+    function getContractTypeOwner(bytes32 cType) external view returns (address);
     function allowSystemContract(bytes32 bytecodeHash) external;
+    function revokeApproval(bytes32 cType, uint256 ver, bytes32 bytecodeHash) external;
+    function removeContractTypeOwner(bytes32 cType) external;
 
-    /// @notice Adds a new auditor
-    function addAuditor(address auditor, string memory name) external;
+    // ------------------------- //
+    // PUBLIC DOMAINS MANAGEMENT //
+    // ------------------------- //
 
-    /// @notice Removes an auditor
-    function removeAuditor(address auditor) external;
-
-    /// @notice Checks if an address is an approved auditor
-    function isAuditor(address auditor) external view returns (bool);
-
-    /// @notice Returns list of all approved auditors
-    function getAuditors() external view returns (address[] memory);
-
-    /// @notice Adds a new public domain
+    function isInPublicDomain(bytes32 cType) external view returns (bool);
+    function isPublicDomain(bytes32 domain) external view returns (bool);
+    function getPublicDomains() external view returns (bytes32[] memory);
     function addPublicDomain(bytes32 domain) external;
-
-    /// @notice Removes a public domain
     function removePublicDomain(bytes32 domain) external;
 
-    /// @notice Marks initCode as forbidden
+    // ------------------- //
+    // AUDITORS MANAGEMENT //
+    // ------------------- //
+
+    function isAuditor(address auditor) external view returns (bool);
+    function getAuditors() external view returns (address[] memory);
+    function getAuditorName(address auditor) external view returns (string memory);
+    function addAuditor(address auditor, string calldata name) external;
+    function removeAuditor(address auditor) external;
+
+    // ------------------- //
+    // FORBIDDING INITCODE //
+    // ------------------- //
+
+    function isInitCodeForbidden(bytes32 initCodeHash) external view returns (bool);
     function forbidInitCode(bytes32 initCodeHash) external;
 
-    /// @notice Sets token-specific postfix
+    // ------------------------ //
+    // TOKENS WITH CUSTOM LOGIC //
+    // ------------------------ //
+
+    function getTokenSpecificPostfix(address token) external view returns (bytes32);
     function setTokenSpecificPostfix(address token, bytes32 postfix) external;
 
-    /// @notice Removes contract type owner
-    function removeContractTypeOwner(bytes32 contractType) external;
+    // --------------- //
+    // VERSION CONTROL //
+    // --------------- //
 
-    /// @notice Revokes approval for a specific bytecode
-    function revokeApproval(bytes32 contractType, uint256 version, bytes32 bytecodeHash) external;
-
-    /// @notice Checks if a contract name belongs to public domain
-    function isInPublicDomain(bytes32 contractType) external view returns (bool);
-
-    /// @notice Checks if a domain is public
-    function isPublicDomain(bytes32 domain) external view returns (bool);
-
-    /// @notice Returns list of all public domains
-    function listPublicDomains() external view returns (bytes32[] memory);
-
-    /// @notice Gets bytecode metadata by hash
-    function bytecodeByHash(bytes32 hash) external view returns (Bytecode memory);
-
-    /// @notice Gets approved bytecode hash for contract type and version
-    function approvedBytecodeHash(bytes32 contractType, uint256 version) external view returns (bytes32);
-
-    /// @notice Gets deployed contract's bytecode hash
-    function deployedContracts(address contractAddress) external view returns (bytes32);
-
-    /// @notice Checks if initCode is forbidden
-    function forbiddenInitCode(bytes32 initCodeHash) external view returns (bool);
-
-    /// @notice Checks if contract is allowed as system contract
-    function allowedSystemContracts(bytes32 bytecodeHash) external view returns (bool);
-
-    /// @notice Gets contract type owner
-    function contractTypeOwner(bytes32 contractType) external view returns (address);
-
-    /// @notice Gets auditor name
-    function auditorName(address auditor) external view returns (string memory);
-
-    /// @notice Gets auditor signatures for a bytecode hash
-    function auditorSignaturesByHash(bytes32 bytecodeHash) external view returns (AuditorSignature[] memory);
-
-    /// @notice Gets specific auditor signature for a bytecode hash
-    function auditorSignaturesByHash(bytes32 bytecodeHash, uint256 index)
-        external
-        view
-        returns (AuditorSignature memory);
-
-    /// @notice Checks if bytecode is uploaded
-    function isBytecodeUploaded(bytes32 bytecodeHash) external view returns (bool);
-
-    /// @notice Checks if initCode is forbidden and reverts if it is
-    function revertIfInitCodeForbidden(bytes memory initCode) external view;
-
-    /// @notice Checks if bytecode is audited
-    function isAuditBytecode(bytes32 bytecodeHash) external view returns (bool);
-
-    function BYTECODE_TYPEHASH() external view returns (bytes32);
+    function getLatestVersion(bytes32 cType) external view returns (uint256);
+    function getLatestMinorVersion(bytes32 cType, uint256 majorVersion) external view returns (uint256);
+    function getLatestPatchVersion(bytes32 cType, uint256 minorVersion) external view returns (uint256);
 }
