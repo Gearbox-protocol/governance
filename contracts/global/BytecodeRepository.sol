@@ -25,6 +25,7 @@ import {ImmutableOwnableTrait} from "../traits/ImmutableOwnableTrait.sol";
 contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecodeRepository, EIP712Mainnet {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.Bytes32Set;
+    using EnumerableSet for EnumerableSet.UintSet;
     using LibString for bytes32;
     using LibString for string;
     using LibString for uint256;
@@ -32,9 +33,11 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
 
     /// @dev Internal struct with version info for a given contract type
     struct VersionInfo {
+        address owner;
         uint256 latest;
-        mapping(uint256 => uint256) latestByMajor;
-        mapping(uint256 => uint256) latestByMinor;
+        mapping(uint256 majorVersion => uint256) latestByMajor;
+        mapping(uint256 minorVersion => uint256) latestByMinor;
+        EnumerableSet.UintSet versionsSet;
     }
 
     /// @notice Contract version
@@ -63,11 +66,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     /// @dev Mapping from `cType` to `ver` to allowed bytecode hash
     mapping(bytes32 cType => mapping(uint256 ver => bytes32 bytecodeHash)) internal _allowedBytecodeHashes;
 
-    /// @dev Mapping from `cType` to its owner
-    mapping(bytes32 cType => address owner) internal _contractTypeOwners;
-
-    /// @dev Mapping from `bytecodeHash` to whether it is allowed as system contract
-    mapping(bytes32 bytecodeHash => bool) internal _isAllowedSystemContract;
+    /// @dev Set of system domains
+    EnumerableSet.Bytes32Set internal _systemDomainsSet;
 
     /// @dev Set of public domains
     EnumerableSet.Bytes32Set internal _publicDomainsSet;
@@ -161,9 +161,10 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
 
     /// @notice Deploys a contract of a given type and version with given constructor parameters and salt.
     ///         Tries to transfer ownership over the deployed contract to the caller.
-    ///         Bytecode must be allowed, which means it is either a system contract or a contract from public
-    ///         domain with at least one signed report from approved auditor and not forbidden init code.
+    ///         Bytecode must be allowed either as system or public contract, which, in turn, requires it
+    ///         to be uploaded and have at least one signed report from approved auditor.
     /// @dev Deployer's address is mixed with salt to prevent front-running using collisions
+    /// @dev Reverts if contract's init code is forbidden
     /// @dev Reverts if contract was previously deployed at the same address
     /// @dev Reverts if deployed contract's type or version does not match passed parameters
     function deploy(bytes32 cType, uint256 ver, bytes memory constructorParams, bytes32 salt)
@@ -220,6 +221,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
 
     /// @notice Uploads new contract bytecode to the repository.
     ///         Simply uploading the bytecode is not enough to deploy a contract with it, see `deploy` for details.
+    /// @dev Reverts if bytecode's contract type is invalid or version is less than `100` or greater than `999`
     /// @dev Reverts if bytecode for given contract type and version is already allowed
     /// @dev Reverts if author is zero address or if their signature is invalid
     /// @dev On mainnet, only author of the bytecode can upload it
@@ -227,6 +229,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         bytes32 bytecodeHash = computeBytecodeHash(bytecode);
         if (isBytecodeUploaded(bytecodeHash)) return;
 
+        _validateContractType(bytecode.contractType);
+        _validateVersion(bytecode.contractType, bytecode.version);
         if (_allowedBytecodeHashes[bytecode.contractType][bytecode.version] != 0) {
             revert BytecodeIsAlreadyAllowedException(bytecode.contractType, bytecode.version);
         }
@@ -296,22 +300,11 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         }
         reports.push(auditReport);
         emit AuditBytecode(bytecodeHash, auditor, auditReport.reportUrl);
-
-        _doStuff(bytecodeHash);
     }
 
     // ----------------- //
     // ALLOWING BYTECODE //
     // ----------------- //
-
-    // TODO: rework this section
-    // some issues:
-    // - nothing prevents owner from calling `allowSystemContract` twice for the same contract type and version,
-    //   overwriting the contract type owner
-    // - the order in which `addPublicDomain` and `submitAuditReport` are called is important as submitting the
-    //   report before adding the public domain leaves us with unallowed contract unless we directly allow it
-    //   as system contract or find another auditor signature (with fake report URL or idk)
-    // - the behavior is a bit unpredictable if owner allows system contract which has a type from public domain
 
     /// @notice Returns the allowed bytecode hash for `cType` and `ver`
     function getAllowedBytecodeHash(bytes32 cType, uint256 ver) external view override returns (bytes32) {
@@ -320,91 +313,105 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
 
     /// @notice Returns the owner of `cType`
     function getContractTypeOwner(bytes32 cType) external view override returns (address) {
-        return _contractTypeOwners[cType];
+        return _versionInfo[cType].owner;
     }
 
-    /// @notice Returns whether contract with `bytecodeHash` is an allowed system contract
-    function isAllowedSystemContract(bytes32 bytecodeHash) external view override returns (bool) {
-        return _isAllowedSystemContract[bytecodeHash];
-    }
-
-    /// @notice Allows owner to mark contracts as system contracts
-    /// @param bytecodeHash Hash of the bytecode metadata to allow
+    /// @notice Marks bytecode with `bytecodeHash` as allowed system contract.
+    ///         Adds bytecode's domain to the list of system domains.
+    /// @dev Can only be called by the owner
+    /// @dev Reverts if bytecode is not uploaded or not audited
+    /// @dev Reverts if bytecode's contract type is in the list of public domains
+    /// @dev Reverts if bytecode with this contract type and version is already allowed
     function allowSystemContract(bytes32 bytecodeHash) external override onlyOwner {
-        if (!isBytecodeUploaded(bytecodeHash) || !isBytecodeAudited(bytecodeHash)) return;
-        if (_isAllowedSystemContract[bytecodeHash]) return;
+        if (!isBytecodeUploaded(bytecodeHash)) revert BytecodeIsNotUploadedException(bytecodeHash);
+        if (!isBytecodeAudited(bytecodeHash)) revert BytecodeIsNotAuditedException(bytecodeHash);
 
-        _isAllowedSystemContract[bytecodeHash] = true;
         BytecodePointer storage bytecode = _bytecodeByHash[bytecodeHash];
         bytes32 cType = bytecode.contractType;
-        address author = bytecode.author;
+        _addSystemDomain(cType.extractDomain());
 
-        // QUESTION: should we check if `cType` already has an owner?
-        // because it's in public domain or was previously allowed as system contract
-        _contractTypeOwners[cType] = author;
-        emit SetContractTypeOwner(cType, author);
-
-        _allowBytecode(bytecodeHash, cType, bytecode.version);
+        _allowContract(bytecodeHash, cType, bytecode.version);
     }
 
-    function revokeApproval(bytes32 cType, uint256 ver, bytes32 bytecodeHash) external override onlyOwner {
-        if (_allowedBytecodeHashes[cType][ver] == bytecodeHash) {
-            _allowedBytecodeHashes[cType][ver] = bytes32(0);
-            emit ForbidBytecode(bytecodeHash, cType, ver);
-        }
-    }
+    /// @notice Marks bytecode with `bytecodeHash` as allowed public contract.
+    ///         Sets bytecode's author as contract type owner.
+    /// @dev Reverts if bytecode is not uploaded or not audited
+    /// @dev Reverts if bytecode's contract type is not in the list of public domains
+    /// @dev Reverts if bytecode's author is not contract type owner
+    /// @dev Reverts if bytecode with this contract type and version is already allowed
+    function allowPublicContract(bytes32 bytecodeHash) external override {
+        if (!isBytecodeUploaded(bytecodeHash)) revert BytecodeIsNotUploadedException(bytecodeHash);
+        if (!isBytecodeAudited(bytecodeHash)) revert BytecodeIsNotAuditedException(bytecodeHash);
 
-    /// @notice Removes contract type owner
-    /// @param cType Contract type to remove owner from
-    /// @dev Used to remove malicious auditors and cybersquatters
-    function removeContractTypeOwner(bytes32 cType) external override onlyOwner {
-        if (_contractTypeOwners[cType] == address(0)) return;
-        _contractTypeOwners[cType] = address(0);
-        emit RemoveContractTypeOwner(cType);
-    }
-
-    function _doStuff(bytes32 bytecodeHash) internal {
         BytecodePointer storage bytecode = _bytecodeByHash[bytecodeHash];
         bytes32 cType = bytecode.contractType;
-
-        bool isSystemContract = _isAllowedSystemContract[bytecodeHash];
-        bool isContractTypeInPublicDomain = isInPublicDomain(cType);
+        if (!isPublicDomain(cType.extractDomain())) revert ContractTypeIsNotInPublicDomainException(cType);
 
         address author = bytecode.author;
-        address currentOwner = _contractTypeOwners[cType];
-        if (isSystemContract && currentOwner == address(0)) {
-            _contractTypeOwners[cType] = author;
+        address contractTypeOwner = _versionInfo[cType].owner;
+        if (contractTypeOwner == address(0)) {
+            _versionInfo[cType].owner = author;
             emit SetContractTypeOwner(cType, author);
-        } else if (isContractTypeInPublicDomain && currentOwner != author) {
+        } else if (contractTypeOwner != author) {
             revert AuthorIsNotContractTypeOwnerException(cType, author);
         }
 
-        // FIXME: for contracts from public domain, submitting a signature before adding the public domain leaves us
-        // with no other way to later allow it except marking it as system contract or finding another auditor signature
-        if (isSystemContract || isContractTypeInPublicDomain) _allowBytecode(bytecodeHash, cType, bytecode.version);
+        _allowContract(bytecodeHash, cType, bytecode.version);
     }
 
-    function _allowBytecode(bytes32 bytecodeHash, bytes32 cType, uint256 ver) internal {
-        // QUESTION: what if bytecodeHash is non-zero but different from already set?
-        if (_allowedBytecodeHashes[cType][ver] != 0) return;
+    /// @notice Forbids all previously allowed public contracts of a given type, removes type owner and version info.
+    ///         Exists primarily to cleanup the repository after public domain squatting by a compromised auditor.
+    /// @dev Can only be called by the owner
+    function removePublicContractType(bytes32 cType) external override onlyOwner {
+        if (!isPublicDomain(cType.extractDomain())) return;
 
+        VersionInfo storage info = _versionInfo[cType];
+        if (info.owner != address(0)) {
+            info.owner = address(0);
+            emit RemoveContractTypeOwner(cType);
+        }
+        info.latest = 0;
+        uint256[] memory versions = info.versionsSet.values();
+        uint256 numVersions = versions.length;
+        for (uint256 i; i < numVersions; ++i) {
+            uint256 ver = versions[i];
+            info.versionsSet.remove(ver);
+            info.latestByMajor[_getMajorVersion(ver)] = 0;
+            info.latestByMinor[_getMinorVersion(ver)] = 0;
+
+            bytes32 bytecodeHash = _allowedBytecodeHashes[cType][ver];
+            _allowedBytecodeHashes[cType][ver] = bytes32(0);
+            emit ForbidContract(bytecodeHash, cType, ver);
+        }
+    }
+
+    /// @dev Allows bytecode with `bytecodeHash` for `cType` and `ver`, updates version info for `cType`
+    /// @dev Reverts if bytecode is already allowed
+    function _allowContract(bytes32 bytecodeHash, bytes32 cType, uint256 ver) internal {
+        if (_allowedBytecodeHashes[cType][ver] == bytecodeHash) return;
+        if (_allowedBytecodeHashes[cType][ver] != 0) revert BytecodeIsAlreadyAllowedException(cType, ver);
         _allowedBytecodeHashes[cType][ver] = bytecodeHash;
-        emit AllowBytecode(bytecodeHash, cType, ver);
+        emit AllowContract(bytecodeHash, cType, ver);
 
         _updateVersionInfo(cType, ver);
     }
 
-    // ------------------------- //
-    // PUBLIC DOMAINS MANAGEMENT //
-    // ------------------------- //
+    // ------------------ //
+    // DOMAINS MANAGEMENT //
+    // ------------------ //
 
-    /// @notice Whether `cType` belongs to a public domain
-    function isInPublicDomain(bytes32 cType) public view override returns (bool) {
-        return _publicDomainsSet.contains(cType.extractDomain());
+    /// @notice Whether `domain` is in the list of system domains
+    function isSystemDomain(bytes32 domain) public view override returns (bool) {
+        return _systemDomainsSet.contains(domain);
+    }
+
+    /// @notice Returns list of all system domains
+    function getSystemDomains() external view override returns (bytes32[] memory) {
+        return _systemDomainsSet.values();
     }
 
     /// @notice Whether `domain` is in the list of public domains
-    function isPublicDomain(bytes32 domain) external view override returns (bool) {
+    function isPublicDomain(bytes32 domain) public view override returns (bool) {
         return _publicDomainsSet.contains(domain);
     }
 
@@ -413,17 +420,26 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         return _publicDomainsSet.values();
     }
 
-    /// @notice Adds `domain` to the list of public domains (does nothing if `domain` contains "::")
+    /// @notice Adds `domain` to the list of public domains
     /// @dev Can only be called by the owner
+    /// @dev Reverts if `domain` is invalid or is already in the list of system domains
     function addPublicDomain(bytes32 domain) external override onlyOwner {
-        if (domain == bytes32(0) || LibString.fromSmallString(domain).contains("::")) return;
+        _validateDomain(domain);
+        _addPublicDomain(domain);
+    }
+
+    /// @dev Adds `domain` to the list of public domains
+    /// @dev Reverts if `domain` is already in the list of system domains
+    function _addPublicDomain(bytes32 domain) internal {
+        if (isSystemDomain(domain)) revert DomainIsAlreadyMarketAsSystemException(domain);
         if (_publicDomainsSet.add(domain)) emit AddPublicDomain(domain);
     }
 
-    /// @notice Removes `domain` from the list of public domains
-    /// @dev Can only be called by the owner
-    function removePublicDomain(bytes32 domain) external override onlyOwner {
-        if (_publicDomainsSet.remove(domain)) emit RemovePublicDomain(domain);
+    /// @dev Adds `domain` to the list of system domains
+    /// @dev Reverts if `domain` is already in the list of public domains
+    function _addSystemDomain(bytes32 domain) internal {
+        if (isPublicDomain(domain)) revert DomainIsAlreadyMarketAsPublicException(domain);
+        if (_systemDomainsSet.add(domain)) emit AddSystemDomain(domain);
     }
 
     // ------------------- //
@@ -462,16 +478,16 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         emit RemoveAuditor(auditor);
     }
 
-    // ------------------- //
-    // FORBIDDING INITCODE //
-    // ------------------- //
+    // -------------------- //
+    // FORBIDDING INIT CODE //
+    // -------------------- //
 
     /// @notice Whether init code with `initCodeHash` is forbidden
     function isInitCodeForbidden(bytes32 initCodeHash) external view override returns (bool) {
         return _isInitCodeForbidden[initCodeHash];
     }
 
-    /// @notice Marks init code with `initCodeHash` as forbidden
+    /// @notice Permanently marks init code with `initCodeHash` as forbidden
     /// @dev Can only be called by the owner
     function forbidInitCode(bytes32 initCodeHash) external override onlyOwner {
         if (_isInitCodeForbidden[initCodeHash]) return;
@@ -506,6 +522,11 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
     // VERSION CONTROL //
     // --------------- //
 
+    /// @notice Returns all versions for `cType`
+    function getVersions(bytes32 cType) external view override returns (uint256[] memory) {
+        return _versionInfo[cType].versionsSet.values();
+    }
+
     /// @notice Returns the latest known bytecode version for given `cType`
     /// @dev Reverts if `cType` has no bytecode entries
     function getLatestVersion(bytes32 cType) external view override returns (uint256 ver) {
@@ -513,8 +534,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         if (ver == 0) revert VersionNotFoundException(cType);
     }
 
-    /// @notice Returns the latest known minor version for given `cType` and `majorVersion`
-    /// @dev Reverts if `majorVersion` is less than `100`
+    /// @notice Returns the latest known version for given `cType` with matching `majorVersion`
+    /// @dev Reverts if `majorVersion` is less than `100` or greater than `999`
     /// @dev Reverts if `cType` has no bytecode entries with matching `majorVersion`
     function getLatestMinorVersion(bytes32 cType, uint256 majorVersion) external view override returns (uint256 ver) {
         _validateVersion(cType, majorVersion);
@@ -522,8 +543,8 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         if (ver == 0) revert VersionNotFoundException(cType);
     }
 
-    /// @notice Returns the latest known patch version for given `cType` and `minorVersion`
-    /// @dev Reverts if `minorVersion` is less than `100`
+    /// @notice Returns the latest known version for given `cType` with matching `minorVersion`
+    /// @dev Reverts if `minorVersion` is less than `100` or greater than `999`
     /// @dev Reverts if `cType` has no bytecode entries with matching `minorVersion`
     function getLatestPatchVersion(bytes32 cType, uint256 minorVersion) external view override returns (uint256 ver) {
         _validateVersion(cType, minorVersion);
@@ -539,6 +560,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         if (ver > info.latestByMajor[majorVersion]) info.latestByMajor[majorVersion] = ver;
         uint256 minorVersion = _getMinorVersion(ver);
         if (ver > info.latestByMinor[minorVersion]) info.latestByMinor[minorVersion] = ver;
+        info.versionsSet.add(ver);
     }
 
     /// @dev Returns the major version of a given version
@@ -551,8 +573,18 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
         return ver - ver % 10;
     }
 
-    /// @dev Reverts if `ver` is less than `100`
-    function _validateVersion(bytes32 key, uint256 ver) internal pure {
-        if (ver < 100) revert InvalidVersionException(key, ver);
+    /// @dev Reverts if `cType` is invalid
+    function _validateContractType(bytes32 cType) internal pure {
+        if (!cType.isValidContractType()) revert InvalidContractTypeException(cType);
+    }
+
+    /// @dev Reverts if `domain` is invalid
+    function _validateDomain(bytes32 domain) internal pure {
+        if (!domain.isValidDomain()) revert InvalidDomainException(domain);
+    }
+
+    /// @dev Reverts if `ver` is less than `100` or greater than `999`
+    function _validateVersion(bytes32 cType, uint256 ver) internal pure {
+        if (ver < 100 || ver > 999) revert InvalidVersionException(cType, ver);
     }
 }

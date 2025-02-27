@@ -15,13 +15,17 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
 
     event AddAuditor(address indexed auditor, string name);
     event AddPublicDomain(bytes32 indexed domain);
+    event AddSystemDomain(bytes32 indexed domain);
+    event AllowContract(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
     event AuditBytecode(bytes32 indexed bytecodeHash, address indexed auditor, string reportUrl);
     event DeployContract(
         bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver, address contractAddress
     );
+    event ForbidContract(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
     event ForbidInitCode(bytes32 indexed initCodeHash);
     event RemoveAuditor(address indexed auditor);
-    event RemovePublicDomain(bytes32 indexed domain);
+    event RemoveContractTypeOwner(bytes32 indexed cType);
+    event SetContractTypeOwner(bytes32 indexed cType, address indexed owner);
     event SetTokenSpecificPostfix(address indexed token, bytes32 indexed postfix);
     event UploadBytecode(
         bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver, address author, string source
@@ -36,13 +40,19 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     error BytecodeIsAlreadyAllowedException(bytes32 cType, uint256 ver);
     error BytecodeIsAlreadySignedByAuditorException(bytes32 bytecodeHash, address auditor);
     error BytecodeIsNotAllowedException(bytes32 cType, uint256 ver);
+    error BytecodeIsNotAuditedException(bytes32 bytecodeHash);
     error BytecodeIsNotUploadedException(bytes32 bytecodeHash);
     error CallerIsNotBytecodeAuthorException(address caller);
     error ContractIsAlreadyDeployedException(address deployedContract);
+    error ContractTypeIsNotInPublicDomainException(bytes32 cType);
+    error DomainIsAlreadyMarketAsPublicException(bytes32 domain);
+    error DomainIsAlreadyMarketAsSystemException(bytes32 domain);
     error InitCodeIsForbiddenException(bytes32 initCodeHash);
     error InvalidAuditorSignatureException(address auditor);
     error InvalidAuthorSignatureException(address author);
     error InvalidBytecodeException(bytes32 bytecodeHash);
+    error InvalidContractTypeException(bytes32 cType);
+    error InvalidDomainException(bytes32 domain);
     error InvalidVersionException(bytes32 cType, uint256 ver);
     error VersionNotFoundException(bytes32 cType);
 
@@ -98,29 +108,21 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     // ALLOWING BYTECODE //
     // ----------------- //
 
-    // TODO: rework this section
-
-    event AllowBytecode(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
-    event ForbidBytecode(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
-    event SetContractTypeOwner(bytes32 indexed cType, address indexed owner);
-    event RemoveContractTypeOwner(bytes32 indexed cType);
-
     function getAllowedBytecodeHash(bytes32 cType, uint256 ver) external view returns (bytes32);
-    function isAllowedSystemContract(bytes32 bytecodeHash) external view returns (bool);
     function getContractTypeOwner(bytes32 cType) external view returns (address);
     function allowSystemContract(bytes32 bytecodeHash) external;
-    function revokeApproval(bytes32 cType, uint256 ver, bytes32 bytecodeHash) external;
-    function removeContractTypeOwner(bytes32 cType) external;
+    function allowPublicContract(bytes32 bytecodeHash) external;
+    function removePublicContractType(bytes32 cType) external;
 
-    // ------------------------- //
-    // PUBLIC DOMAINS MANAGEMENT //
-    // ------------------------- //
+    // ------------------ //
+    // DOMAINS MANAGEMENT //
+    // ------------------ //
 
-    function isInPublicDomain(bytes32 cType) external view returns (bool);
+    function isSystemDomain(bytes32 domain) external view returns (bool);
+    function getSystemDomains() external view returns (bytes32[] memory);
     function isPublicDomain(bytes32 domain) external view returns (bool);
     function getPublicDomains() external view returns (bytes32[] memory);
     function addPublicDomain(bytes32 domain) external;
-    function removePublicDomain(bytes32 domain) external;
 
     // ------------------- //
     // AUDITORS MANAGEMENT //
@@ -132,9 +134,9 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     function addAuditor(address auditor, string calldata name) external;
     function removeAuditor(address auditor) external;
 
-    // ------------------- //
-    // FORBIDDING INITCODE //
-    // ------------------- //
+    // -------------------- //
+    // FORBIDDING INIT CODE //
+    // -------------------- //
 
     function isInitCodeForbidden(bytes32 initCodeHash) external view returns (bool);
     function forbidInitCode(bytes32 initCodeHash) external;
@@ -150,6 +152,7 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     // VERSION CONTROL //
     // --------------- //
 
+    function getVersions(bytes32 cType) external view returns (uint256[] memory);
     function getLatestVersion(bytes32 cType) external view returns (uint256);
     function getLatestMinorVersion(bytes32 cType, uint256 majorVersion) external view returns (uint256);
     function getLatestPatchVersion(bytes32 cType, uint256 minorVersion) external view returns (uint256);

@@ -10,6 +10,7 @@ import {IBytecodeRepository} from "../interfaces/IBytecodeRepository.sol";
 import {IDeployerTrait} from "../interfaces/base/IDeployerTrait.sol";
 
 import {AP_BYTECODE_REPOSITORY, NO_VERSION_CONTROL} from "../libraries/ContractLiterals.sol";
+import {Domain} from "../libraries/Domain.sol";
 
 abstract contract DeployerTrait is IDeployerTrait {
     using LibString for string;
@@ -32,8 +33,7 @@ abstract contract DeployerTrait is IDeployerTrait {
     }
 
     function _getContractType(bytes32 domain, bytes32 postfix) internal pure returns (bytes32) {
-        if (postfix == 0) return domain;
-        return string.concat(domain.fromSmallString(), "::", postfix.fromSmallString()).toSmallString();
+        return Domain.getContractType(domain, postfix);
     }
 
     function _deploy(bytes32 contractType, uint256 version, bytes memory constructorParams, bytes32 salt)

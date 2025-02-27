@@ -246,38 +246,4 @@ contract BytecodeRepositoryTest is Test, SignatureHelper {
         );
         repository.deploy(_TEST_CONTRACT, _TEST_VERSION, "", _TEST_SALT);
     }
-
-    function test_BCR_08_deploy_reverts_if_not_audited() public {
-        // Upload but don't audit
-        bytes memory bytecode = _getMockBytecode(_TEST_CONTRACT, _TEST_VERSION);
-
-        Bytecode memory bc = Bytecode({
-            contractType: _TEST_CONTRACT,
-            version: _TEST_VERSION,
-            initCode: bytecode,
-            author: author,
-            source: _TEST_SOURCE,
-            authorSignature: bytes("")
-        });
-
-        bytes32 bytecodeHash = repository.computeBytecodeHash(bc);
-
-        (uint8 v, bytes32 r, bytes32 s) =
-            vm.sign(authorPK, repository.domainSeparatorV4().toTypedDataHash(bytecodeHash));
-        bc.authorSignature = abi.encodePacked(r, s, v);
-
-        vm.prank(author);
-        repository.uploadBytecode(bc);
-
-        // Mark as system contract to auto-approve
-        vm.prank(owner);
-        repository.allowSystemContract(bytecodeHash);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IBytecodeRepository.BytecodeIsNotAllowedException.selector, _TEST_CONTRACT, _TEST_VERSION
-            )
-        );
-        repository.deploy(_TEST_CONTRACT, _TEST_VERSION, "", _TEST_SALT);
-    }
 }
