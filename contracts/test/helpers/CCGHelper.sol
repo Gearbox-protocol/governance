@@ -19,7 +19,7 @@ contract CCGHelper is SignatureHelper {
     using LibString for uint256;
     // Core contracts
 
-    bytes32 constant BATCH_TYPEHASH = keccak256("Batch(string name,bytes32 batchHash,bytes32 prevHash)");
+    bytes32 constant COMPACT_BATCH_TYPEHASH = keccak256("CompactBatch(string name,bytes32 batchHash,bytes32 prevHash)");
 
     CrossChainMultisig internal multisig;
 
@@ -104,10 +104,9 @@ contract CCGHelper is SignatureHelper {
 
         SignedBatch memory currentBatch = multisig.getBatch(currentBatchHashes[0]);
 
-        bytes32 batchHash = multisig.hashBatch(currentBatch.name, currentBatch.calls, currentBatch.prevHash);
+        bytes32 batchHash = multisig.computeBatchHash(currentBatch.name, currentBatch.calls, currentBatch.prevHash);
 
-        bytes32 structHash =
-            keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes(currentBatch.name)), batchHash, currentBatch.prevHash));
+        bytes32 structHash = multisig.computeCompactBatchHash(currentBatch.name, batchHash, currentBatch.prevHash);
 
         if (!_isTestMode()) {
             console.log("tt");

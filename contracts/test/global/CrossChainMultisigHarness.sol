@@ -32,6 +32,6 @@ contract CrossChainMultisigHarness is CrossChainMultisig {
 
     // Add setter for lastBatchHash
     function setLastBatchHash(bytes32 newHash) external {
-        lastBatchHash = newHash;
+        _executedBatchHashes.push(newHash);
     }
 }

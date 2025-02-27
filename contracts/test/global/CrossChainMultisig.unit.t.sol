@@ -19,7 +19,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
     uint8 constant THRESHOLD = 2;
     address owner;
 
-    bytes32 BATCH_TYPEHASH = keccak256("Batch(string name,bytes32 batchHash,bytes32 prevHash)");
+    bytes32 COMPACT_BATCH_TYPEHASH = keccak256("CompactBatch(string name,bytes32 batchHash,bytes32 prevHash)");
     bytes32 RECOVERY_MODE_TYPEHASH = keccak256("RecoveryMode(bytes32 startingBatchHash)");
 
     function setUp() public {
@@ -45,7 +45,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         view
         returns (bytes memory)
     {
-        bytes32 batchHash = multisig.hashBatch("test", calls, prevHash);
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, prevHash);
         bytes32 structHash = _getDigest(batchHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, structHash);
         return abi.encodePacked(r, s, v);
@@ -106,14 +106,17 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         );
 
         // Test onlySelf modifier
-        vm.expectRevert(ICrossChainMultisig.OnlySelfException.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrossChainMultisig.CallerIsNotSelfException.selector, address(this)));
         multisig.addSigner(address(0x123));
 
-        vm.expectRevert(ICrossChainMultisig.OnlySelfException.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrossChainMultisig.CallerIsNotSelfException.selector, address(this)));
         multisig.removeSigner(signers[0]);
 
-        vm.expectRevert(ICrossChainMultisig.OnlySelfException.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrossChainMultisig.CallerIsNotSelfException.selector, address(this)));
         multisig.setConfirmationThreshold(3);
+
+        vm.expectRevert(abi.encodeWithSelector(ICrossChainMultisig.CallerIsNotSelfException.selector, address(this)));
+        multisig.disableRecoveryMode();
 
         // Test onlyOwner modifier
         vm.prank(makeAddr("notOwner"));
@@ -123,17 +126,29 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
     /// @dev U:[SM-3]: Submit batch works correctly
     function test_CCG_03_SubmitBatch() public {
-        vm.startPrank(owner);
         vm.chainId(1); // Set to mainnet
 
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         calls[0] = CrossChainCall({chainId: 1, target: address(0x123), callData: hex"1234"});
 
+        bytes32 expectedBatchHash = multisig.computeBatchHash("test", calls, bytes32(0));
+
+        vm.expectEmit(true, true, true, true);
+        emit ICrossChainMultisig.SubmitBatch(expectedBatchHash);
+
+        vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
 
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
-        SignedBatch memory batch = multisig.getBatch(batchHash);
+        SignedBatch memory batch = multisig.getBatch(expectedBatchHash);
+        assertEq(batch.calls.length, 1);
+        assertEq(batch.prevHash, bytes32(0));
+        assertEq(batch.signatures.length, 0);
 
+        // submit the same batch again doesn't change calls
+        vm.prank(owner);
+        multisig.submitBatch("test", calls, bytes32(0));
+
+        batch = multisig.getBatch(expectedBatchHash);
         assertEq(batch.calls.length, 1);
         assertEq(batch.prevHash, bytes32(0));
         assertEq(batch.signatures.length, 0);
@@ -156,7 +171,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         CrossChainCall[] memory calls = new CrossChainCall[](0);
 
-        vm.expectRevert(ICrossChainMultisig.NoCallsInProposalException.selector);
+        vm.expectRevert(ICrossChainMultisig.InvalidBatchException.selector);
         multisig.submitBatch("test", calls, bytes32(0));
     }
 
@@ -170,12 +185,13 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
         console.log(signers[0]);
         console.logBytes32(batchHash);
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Generate EIP-712 signature
         bytes memory signature = _signBatchHash(signer0PrivateKey, structHash);
@@ -202,7 +218,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
         // Try to sign with invalid signature
         bytes memory invalidSig = hex"1234";
@@ -220,7 +236,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         bytes32 nonExistentHash = keccak256("non-existent");
         bytes memory signature = _signBatchHash(signer0PrivateKey, nonExistentHash);
 
-        vm.expectRevert(ICrossChainMultisig.InvalidPrevHashException.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(ICrossChainMultisig.BatchIsNotSubmittedException.selector, nonExistentHash)
+        );
         multisig.signBatch(nonExistentHash, signature);
     }
 
@@ -234,16 +252,17 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Sign first time
         bytes memory signature = _signBatchHash(signer0PrivateKey, structHash);
         multisig.signBatch(batchHash, signature);
 
         // Try to sign again with same signer
-        vm.expectRevert(ICrossChainMultisig.AlreadySignedException.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrossChainMultisig.DuplicateSignatureException.selector, signers[0]));
         multisig.signBatch(batchHash, signature);
     }
 
@@ -261,9 +280,10 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Sign with first signer
         bytes memory sig0 = _signBatchHash(signer0PrivateKey, structHash);
@@ -298,7 +318,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
     function test_CCG_13_VerifyBatchEmptyCalls() public {
         CrossChainCall[] memory calls = new CrossChainCall[](0);
 
-        vm.expectRevert(ICrossChainMultisig.NoCallsInProposalException.selector);
+        vm.expectRevert(ICrossChainMultisig.InvalidBatchException.selector);
         multisig.exposed_verifyBatch(calls, bytes32(0));
     }
 
@@ -312,7 +332,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
             callData: hex"1234"
         });
 
-        vm.expectRevert(ICrossChainMultisig.InconsistentSelfCallOnOtherChainException.selector);
+        vm.expectRevert(ICrossChainMultisig.InvalidBatchException.selector);
         multisig.exposed_verifyBatch(calls, bytes32(0));
     }
 
@@ -350,9 +370,10 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Create array with 2 valid signatures
         bytes[] memory signatures = new bytes[](2);
@@ -371,9 +392,10 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Create array with 1 valid and 1 invalid signature
         bytes[] memory signatures = new bytes[](2);
@@ -385,7 +407,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         uint256 validCount = multisig.exposed_verifySignatures(signatures, _getDigest(structHash));
         assertEq(validCount, 1);
     }
-    /// @dev U:[SM-19]: _verifySignatures reverts with AlreadySignedException on duplicate signatures from same signer
+    /// @dev U:[SM-19]: _verifySignatures reverts with DuplicateSignatureException on duplicate signatures from same signer
 
     function test_CCG_19_VerifySignaturesDuplicateSigner() public {
         vm.chainId(1); // Set to mainnet
@@ -394,9 +416,10 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Create array with 2 signatures from same signer
         bytes[] memory signatures = new bytes[](2);
@@ -405,7 +428,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         bytes32 digest = _getDigest(structHash);
 
-        vm.expectRevert(ICrossChainMultisig.AlreadySignedException.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrossChainMultisig.DuplicateSignatureException.selector, signers[0]));
         multisig.exposed_verifySignatures(signatures, digest);
     }
 
@@ -417,9 +440,10 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         vm.prank(owner);
         multisig.submitBatch("test", calls, bytes32(0));
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
 
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         // Create random non-signer private key
         uint256 nonSignerKey = uint256(keccak256("non-signer"));
@@ -456,8 +480,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         SignedBatch memory batch =
             SignedBatch({name: "test", calls: calls, prevHash: bytes32(0), signatures: new bytes[](2)});
 
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         batch.signatures[0] = _signBatchHash(signer0PrivateKey, structHash);
         batch.signatures[1] = _signBatchHash(signer1PrivateKey, structHash);
@@ -475,7 +500,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         multisig.enableRecoveryMode(SignedRecoveryModeMessage({startingBatchHash: batchHash, signatures: signatures}));
 
-        assertTrue(multisig.recoveryModeEnabled());
+        assertTrue(multisig.isRecoveryModeEnabled());
     }
 
     /// @dev U:[SM-23]: Recovery mode skips batch execution except for lastBatchHash update
@@ -491,8 +516,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         SignedBatch memory batch =
             SignedBatch({name: "test", calls: calls, prevHash: bytes32(0), signatures: new bytes[](2)});
 
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         batch.signatures[0] = _signBatchHash(signer0PrivateKey, structHash);
         batch.signatures[1] = _signBatchHash(signer1PrivateKey, structHash);
@@ -515,8 +541,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         SignedBatch memory batch2 =
             SignedBatch({name: "test2", calls: calls2, prevHash: batchHash, signatures: new bytes[](2)});
 
-        bytes32 batchHash2 = multisig.hashBatch("test2", calls2, batchHash);
-        bytes32 structHash2 = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test2")), batchHash2, batchHash));
+        bytes32 batchHash2 = multisig.computeBatchHash("test2", calls2, batchHash);
+        bytes32 structHash2 =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test2")), batchHash2, batchHash));
 
         batch2.signatures[0] = _signBatchHash(signer0PrivateKey, structHash2);
         batch2.signatures[1] = _signBatchHash(signer1PrivateKey, structHash2);
@@ -525,7 +552,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
 
         // Verify lastBatchHash was updated but call wasn't executed
         assertEq(multisig.lastBatchHash(), batchHash2);
-        assertTrue(multisig.recoveryModeEnabled());
+        assertTrue(multisig.isRecoveryModeEnabled());
         assertEq(GeneralMock(calledContract).data().length, 0);
     }
 
@@ -542,8 +569,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         SignedBatch memory batch =
             SignedBatch({name: "test", calls: calls, prevHash: bytes32(0), signatures: new bytes[](2)});
 
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         batch.signatures[0] = _signBatchHash(signer0PrivateKey, structHash);
         batch.signatures[1] = _signBatchHash(signer1PrivateKey, structHash);
@@ -572,8 +600,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         SignedBatch memory batch2 =
             SignedBatch({name: "test2", calls: calls2, prevHash: batchHash, signatures: new bytes[](2)});
 
-        bytes32 batchHash2 = multisig.hashBatch("test2", calls2, batchHash);
-        bytes32 structHash2 = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test2")), batchHash2, batchHash));
+        bytes32 batchHash2 = multisig.computeBatchHash("test2", calls2, batchHash);
+        bytes32 structHash2 =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test2")), batchHash2, batchHash));
 
         batch2.signatures[0] = _signBatchHash(signer0PrivateKey, structHash2);
         batch2.signatures[1] = _signBatchHash(signer1PrivateKey, structHash2);
@@ -584,7 +613,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         multisig.executeBatch(batch2);
 
         // Verify recovery mode was disabled and both calls were executed
-        assertFalse(multisig.recoveryModeEnabled());
+        assertFalse(multisig.isRecoveryModeEnabled());
         assertEq(multisig.lastBatchHash(), batchHash2);
         assertEq(GeneralMock(calledContract).data(), hex"1234");
     }
@@ -618,8 +647,9 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         SignedBatch memory batch =
             SignedBatch({name: "test", calls: calls, prevHash: bytes32(0), signatures: new bytes[](2)});
 
-        bytes32 batchHash = multisig.hashBatch("test", calls, bytes32(0));
-        bytes32 structHash = keccak256(abi.encode(BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
+        bytes32 batchHash = multisig.computeBatchHash("test", calls, bytes32(0));
+        bytes32 structHash =
+            keccak256(abi.encode(COMPACT_BATCH_TYPEHASH, keccak256(bytes("test")), batchHash, bytes32(0)));
 
         batch.signatures[0] = _signBatchHash(signer0PrivateKey, structHash);
         batch.signatures[1] = _signBatchHash(signer1PrivateKey, structHash);
@@ -632,7 +662,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = _signBatchHash(signer0PrivateKey, recoveryHash);
 
-        vm.expectRevert(ICrossChainMultisig.NotEnoughSignaturesException.selector);
+        vm.expectRevert(ICrossChainMultisig.InsufficientNumberOfSignaturesException.selector);
         multisig.enableRecoveryMode(SignedRecoveryModeMessage({startingBatchHash: batchHash, signatures: signatures}));
     }
 
@@ -640,7 +670,7 @@ contract CrossChainMultisigTest is Test, SignatureHelper {
         vm.prank(address(multisig));
         multisig.removeSigner(signers[0]);
 
-        vm.expectRevert(ICrossChainMultisig.InvalidConfirmationThresholdValueException.selector);
+        vm.expectRevert(ICrossChainMultisig.InvalidConfirmationThresholdException.selector);
         vm.prank(address(multisig));
         multisig.removeSigner(signers[1]);
     }
