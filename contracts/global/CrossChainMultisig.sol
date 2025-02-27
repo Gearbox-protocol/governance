@@ -45,7 +45,8 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         keccak256("CompactBatch(string name,bytes32 batchHash,bytes32 prevHash)");
 
     /// @notice Recovery mode typehash
-    bytes32 public constant override RECOVERY_MODE_TYPEHASH = keccak256("RecoveryMode(bytes32 startingBatchHash)");
+    bytes32 public constant override RECOVERY_MODE_TYPEHASH =
+        keccak256("RecoveryMode(uint256 chainId,bytes32 startingBatchHash)");
 
     /// @notice Confirmation threshold
     uint8 public override confirmationThreshold;
@@ -139,8 +140,13 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     }
 
     /// @notice Computes struct hash for recovery mode
-    function computeRecoveryModeHash(bytes32 startingBatchHash) public pure override returns (bytes32) {
-        return keccak256(abi.encode(RECOVERY_MODE_TYPEHASH, startingBatchHash));
+    function computeRecoveryModeHash(uint256 chainId, bytes32 startingBatchHash)
+        public
+        pure
+        override
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(RECOVERY_MODE_TYPEHASH, chainId, startingBatchHash));
     }
 
     // ---------- //
@@ -175,6 +181,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
 
     /// @notice Allows Gearbox DAO to submit a new batch on Ethereum Mainnet
     /// @dev Can only be executed by Gearbox DAO on Ethereum Mainnet
+    /// @dev If batch contains `disableRecoveryMode` self-call, it must be its only call
     /// @dev Reverts if `prevHash` is not the hash of the last executed batch
     /// @dev Reverts if `calls` is empty or contains local self-calls
     function submitBatch(string calldata name, CrossChainCall[] calldata calls, bytes32 prevHash)
@@ -225,6 +232,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     /// @dev In the current implementation, signers are trusted not to deviate and only sign batches
     ///      submitted by Gearbox DAO on Ethereum Mainnet. In future versions, DAO decisions will be
     ///      propagated to other chains using bridges or `L1SLOAD`.
+    /// @dev If batch contains `disableRecoveryMode` self-call, it must be its only call
     /// @dev Reverts if batch's `prevHash` is not the hash of the last executed batch
     /// @dev Reverts if batch is empty or contains local self-calls
     /// @dev Reverts if signatures have duplicates or the number of valid signatures is insufficient
@@ -241,28 +249,31 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     }
 
     /// @dev Ensures that batch is connected to the last executed batch, is non-empty and contains no local self-calls
+    /// @dev If batch contains `disableRecoveryMode` self-call, it must be its only call
     function _verifyBatch(CrossChainCall[] memory calls, bytes32 prevHash) internal view {
         if (prevHash != lastBatchHash()) revert InvalidPrevHashException();
 
         uint256 len = calls.length;
         if (len == 0) revert InvalidBatchException();
         for (uint256 i; i < len; ++i) {
-            if (calls[i].chainId != 0 && calls[i].target == address(this)) {
-                revert InvalidBatchException();
+            if (calls[i].target == address(this)) {
+                if (calls[i].chainId != 0) revert InvalidBatchException();
+                if (bytes4(calls[i].callData) == ICrossChainMultisig.disableRecoveryMode.selector && len != 1) {
+                    revert InvalidBatchException();
+                }
             }
         }
     }
 
     /// @dev Executes a batch of calls skipping local calls from other chains, updates the last executed batch hash
-    /// @dev In recovery mode, simply updates the last executed batch hash, unless the first call is `disableRecoveryMode`
+    /// @dev In recovery mode, only self-calls are executed
     function _executeBatch(CrossChainCall[] memory calls, bytes32 batchHash) internal {
-        if (!_isRecovery(calls[0])) {
-            uint256 len = calls.length;
-            for (uint256 i; i < len; ++i) {
-                uint256 chainId = calls[i].chainId;
-                if (chainId == 0 || chainId == block.chainid) {
-                    calls[i].target.functionCall(calls[i].callData, "Call execution failed");
-                }
+        uint256 len = calls.length;
+        for (uint256 i; i < len; ++i) {
+            if (isRecoveryModeEnabled && calls[i].target != address(this)) continue;
+            uint256 chainId = calls[i].chainId;
+            if (chainId == 0 || chainId == block.chainid) {
+                calls[i].target.functionCall(calls[i].callData, "Call execution failed");
             }
         }
         _executedBatchHashes.push(batchHash);
@@ -346,7 +357,7 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
     // RECOVERY MODE //
     // ------------- //
 
-    /// @notice Enables recovery mode, in which calls execution is skipped
+    /// @notice If `message.chainId` matches current chain, enables recovery mode, in which only self-calls are executed
     /// @dev Can only be executed outside Ethereum Mainnet
     /// @dev Reverts if starting batch of recovery mode is not the last executed batch
     /// @dev Reverts if the number of signatures is insufficient
@@ -356,10 +367,10 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         onlyNotOnMainnet
         nonReentrant
     {
-        if (isRecoveryModeEnabled) return;
+        if (isRecoveryModeEnabled || message.chainId != block.chainid) return;
         if (message.startingBatchHash != lastBatchHash()) revert InvalidRecoveryModeMessageException();
 
-        bytes32 digest = _hashTypedDataV4(computeRecoveryModeHash(message.startingBatchHash));
+        bytes32 digest = _hashTypedDataV4(computeRecoveryModeHash(message.chainId, message.startingBatchHash));
         uint256 validSignatures = _verifySignatures(message.signatures, digest);
         if (validSignatures < confirmationThreshold) revert InsufficientNumberOfSignaturesException();
 
@@ -367,21 +378,11 @@ contract CrossChainMultisig is EIP712Mainnet, Ownable, ReentrancyGuard, ICrossCh
         emit EnableRecoveryMode(message.startingBatchHash);
     }
 
-    /// @notice Disables recovery mode
+    /// @notice If `chainId` matches current chain, disables recovery mode
     /// @dev Can only be executed by the contract itself
-    function disableRecoveryMode() external override onlySelf {
-        if (!isRecoveryModeEnabled) return;
+    function disableRecoveryMode(uint256 chainId) external override onlySelf {
+        if (!isRecoveryModeEnabled || chainId != block.chainid) return;
         isRecoveryModeEnabled = false;
         emit DisableRecoveryMode();
-    }
-
-    /// @dev Whether the batch should be skipped due to recovery mode
-    function _isRecovery(CrossChainCall memory call0) internal view returns (bool) {
-        if (!isRecoveryModeEnabled) return false;
-
-        return !(
-            (call0.chainId == 0) && (call0.target == address(this))
-                && (bytes4(call0.callData) == ICrossChainMultisig.disableRecoveryMode.selector)
-        );
     }
 }

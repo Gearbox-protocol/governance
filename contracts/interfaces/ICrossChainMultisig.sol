@@ -56,7 +56,7 @@ interface ICrossChainMultisig is IVersion {
         external
         view
         returns (bytes32);
-    function computeRecoveryModeHash(bytes32 startingBatchHash) external view returns (bytes32);
+    function computeRecoveryModeHash(uint256 chainId, bytes32 startingBatchHash) external view returns (bytes32);
 
     // ---------- //
     // GOVERNANCE //
@@ -88,5 +88,5 @@ interface ICrossChainMultisig is IVersion {
 
     function isRecoveryModeEnabled() external view returns (bool);
     function enableRecoveryMode(SignedRecoveryModeMessage calldata message) external;
-    function disableRecoveryMode() external;
+    function disableRecoveryMode(uint256 chainId) external;
 }

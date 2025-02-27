@@ -83,6 +83,7 @@ struct SignedBatch {
 }
 
 struct SignedRecoveryModeMessage {
+    uint256 chainId;
     bytes32 startingBatchHash;
     bytes[] signatures;
 }
