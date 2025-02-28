@@ -299,7 +299,7 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             }
         }
         reports.push(auditReport);
-        emit AuditBytecode(bytecodeHash, auditor, auditReport.reportUrl);
+        emit AuditBytecode(bytecodeHash, auditor, auditReport.reportUrl, auditReport.signature);
     }
 
     // ----------------- //
