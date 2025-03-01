@@ -32,7 +32,8 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
         bytes32 indexed contractType,
         uint256 indexed version,
         address author,
-        string source
+        string source,
+        bytes signature
     );
 
     // ------ //

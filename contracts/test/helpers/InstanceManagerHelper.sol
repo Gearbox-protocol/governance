@@ -91,6 +91,12 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
         );
     }
 
+    function _generateAllowPublicContractCall(bytes32 _bytecodeHash) internal view returns (CrossChainCall memory) {
+        return _buildCrossChainCallDAO(
+            bytecodeRepository, abi.encodeCall(IBytecodeRepository.allowPublicContract, (_bytecodeHash))
+        );
+    }
+
     function _generateDeploySystemContractCall(bytes32 _contractName, uint256 _version, bool _saveVersion)
         internal
         view
@@ -101,6 +107,21 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
             target: address(instanceManager),
             callData: abi.encodeCall(InstanceManager.deploySystemContract, (_contractName, _version, _saveVersion))
         });
+    }
+
+    function _generateAddPublicDomainCall(bytes32 domain) internal view returns (CrossChainCall memory) {
+        return
+            _buildCrossChainCallDAO(bytecodeRepository, abi.encodeCall(IBytecodeRepository.addPublicDomain, (domain)));
+    }
+
+    function _generateSetTokenSpecificPostfixCall(address token, bytes32 postfix)
+        internal
+        view
+        returns (CrossChainCall memory)
+    {
+        return _buildCrossChainCallDAO(
+            bytecodeRepository, abi.encodeCall(IBytecodeRepository.setTokenSpecificPostfix, (token, postfix))
+        );
     }
 
     function _generateActivateCall(

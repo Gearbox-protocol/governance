@@ -248,7 +248,14 @@ contract BytecodeRepository is ImmutableOwnableTrait, SanityCheckTrait, IBytecod
             source: bytecode.source,
             authorSignature: bytecode.authorSignature
         });
-        emit UploadBytecode(bytecodeHash, bytecode.contractType, bytecode.version, bytecode.author, bytecode.source);
+        emit UploadBytecode(
+            bytecodeHash,
+            bytecode.contractType,
+            bytecode.version,
+            bytecode.author,
+            bytecode.source,
+            bytecode.authorSignature
+        );
     }
 
     // ----------------- //

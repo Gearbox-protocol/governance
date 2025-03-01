@@ -236,13 +236,13 @@ contract PriceFeedStore is
     /// @notice Executes price feed configuration `calls` with owner privileges
     /// @dev Reverts if caller is not owner
     /// @dev Reverts if any of call targets is not a known price feed
-    /// @dev Reverts if any of calls transfers or renounces ownership over price feed
+    /// @dev Reverts if any of calls renounces ownership over price feed
     function configurePriceFeeds(Call[] calldata calls) external override onlyOwner {
         uint256 numCalls = calls.length;
         for (uint256 i; i < numCalls; ++i) {
             if (!_knownPriceFeeds.contains(calls[i].target)) revert PriceFeedIsNotKnownException(calls[i].target);
             bytes4 selector = bytes4(calls[i].callData);
-            if (selector == Ownable.transferOwnership.selector || selector == Ownable.renounceOwnership.selector) {
+            if (selector == Ownable.renounceOwnership.selector) {
                 revert ForbiddenConfigurationMethodException(selector);
             }
             calls[i].target.functionCall(calls[i].callData);
@@ -292,14 +292,12 @@ contract PriceFeedStore is
 
     /// @dev Returns whether `priceFeed` is deployed externally or via BCR.
     ///      For latter case, also ensures that price feed is owned by the store.
-    function _validatePriceFeedDeployment(address priceFeed) internal view returns (bool) {
+    function _validatePriceFeedDeployment(address priceFeed) internal returns (bool) {
         if (!IBytecodeRepository(bytecodeRepository).isDeployedFromRepository(priceFeed)) return true;
 
+        try Ownable2Step(priceFeed).acceptOwnership() {} catch {}
         try Ownable(priceFeed).owner() returns (address owner_) {
             if (owner_ != address(this)) revert PriceFeedIsNotOwnedByStore(priceFeed);
-            try Ownable2Step(priceFeed).pendingOwner() returns (address pendingOwner_) {
-                if (pendingOwner_ != address(0)) revert PriceFeedIsNotOwnedByStore(priceFeed);
-            } catch {}
         } catch {}
 
         return false;
