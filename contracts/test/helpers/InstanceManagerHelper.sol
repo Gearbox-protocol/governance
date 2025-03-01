@@ -114,16 +114,6 @@ contract InstanceManagerHelper is BCRHelpers, CCGHelper {
             _buildCrossChainCallDAO(bytecodeRepository, abi.encodeCall(IBytecodeRepository.addPublicDomain, (domain)));
     }
 
-    function _generateSetTokenSpecificPostfixCall(address token, bytes32 postfix)
-        internal
-        view
-        returns (CrossChainCall memory)
-    {
-        return _buildCrossChainCallDAO(
-            bytecodeRepository, abi.encodeCall(IBytecodeRepository.setTokenSpecificPostfix, (token, postfix))
-        );
-    }
-
     function _generateActivateCall(
         uint256 _chainId,
         address _instanceOwner,
