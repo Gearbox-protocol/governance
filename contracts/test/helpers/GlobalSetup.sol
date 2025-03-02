@@ -10,6 +10,7 @@ import {PriceFeedStore} from "../../instance/PriceFeedStore.sol";
 import {IBytecodeRepository} from "../../interfaces/IBytecodeRepository.sol";
 import {IAddressProvider} from "../../interfaces/IAddressProvider.sol";
 import {IInstanceManager} from "../../interfaces/IInstanceManager.sol";
+import {Domain} from "../../libraries/Domain.sol";
 
 import {IWETH} from "@gearbox-protocol/core-v3/contracts/interfaces/external/IWETH.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -40,7 +41,15 @@ import {
     AP_LOSS_POLICY_DEFAULT,
     AP_CREDIT_MANAGER,
     AP_CREDIT_FACADE,
-    AP_CREDIT_CONFIGURATOR
+    AP_CREDIT_CONFIGURATOR,
+    DOMAIN_ADAPTER,
+    DOMAIN_BOT,
+    DOMAIN_DEGEN_NFT,
+    DOMAIN_IRM,
+    DOMAIN_LOSS_POLICY,
+    DOMAIN_PRICE_FEED,
+    DOMAIN_RATE_KEEPER,
+    DOMAIN_ZAPPER
 } from "../../libraries/ContractLiterals.sol";
 import {SignedBatch, Bytecode} from "../../interfaces/Types.sol";
 
@@ -121,8 +130,6 @@ import {CurveCryptoLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/ora
 import {CurveStableLPPriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/curve/CurveStableLPPriceFeed.sol";
 import {ERC4626PriceFeed} from "@gearbox-protocol/oracles-v3/contracts/oracles/erc4626/ERC4626PriceFeed.sol";
 
-import {console} from "forge-std/console.sol";
-
 struct UploadableContract {
     bytes initCode;
     bytes32 contractType;
@@ -142,7 +149,10 @@ contract GlobalSetup is Test, InstanceManagerHelper {
     constructor() {
         _setCoreContracts();
         _setAdapters();
+        _setInterestRateModels();
+        _setLossPolicies();
         _setPriceFeeds();
+        _setRateKeepers();
     }
 
     function _setUpGlobalContracts() internal {
@@ -150,21 +160,40 @@ contract GlobalSetup is Test, InstanceManagerHelper {
 
         CrossChainCall[] memory calls = new CrossChainCall[](1);
         calls[0] = _generateAddAuditorCall(auditor, "Initial Auditor");
+        _submitBatchAndSign("Add auditor", calls);
 
-        _submitBatchAndSign("Add Auditor", calls);
+        bytes32[8] memory publicDomains = [
+            DOMAIN_ADAPTER,
+            DOMAIN_BOT,
+            DOMAIN_DEGEN_NFT,
+            DOMAIN_IRM,
+            DOMAIN_LOSS_POLICY,
+            DOMAIN_PRICE_FEED,
+            DOMAIN_RATE_KEEPER,
+            DOMAIN_ZAPPER
+        ];
+        calls = new CrossChainCall[](publicDomains.length);
+        for (uint256 i = 0; i < publicDomains.length; ++i) {
+            calls[i] = _generateAddPublicDomainCall(publicDomains[i]);
+        }
+        _submitBatchAndSign("Add public domains", calls);
 
         uint256 len = contractsToUpload.length;
-
         calls = new CrossChainCall[](len);
-
         for (uint256 i = 0; i < len; ++i) {
             bytes32 bytecodeHash = _uploadByteCodeAndSign(
                 contractsToUpload[i].initCode, contractsToUpload[i].contractType, contractsToUpload[i].version
             );
-            calls[i] = _generateAllowSystemContractCall(bytecodeHash);
-        }
 
-        _submitBatchAndSign("Allow system contracts", calls);
+            bool isPublicContract = IBytecodeRepository(bytecodeRepository).isPublicDomain(
+                Domain.extractDomain(contractsToUpload[i].contractType)
+            );
+            // NOTE: allowing public contracts doesn't require CCG permissions but it's convenient to execute in batch
+            calls[i] = isPublicContract
+                ? _generateAllowPublicContractCall(bytecodeHash)
+                : _generateAllowSystemContractCall(bytecodeHash);
+        }
+        _submitBatchAndSign("Allow contracts", calls);
 
         DeploySystemContractCall[10] memory deployCalls = [
             DeploySystemContractCall({contractType: AP_BOT_LIST, version: 3_10, saveVersion: false}),
@@ -178,17 +207,14 @@ contract GlobalSetup is Test, InstanceManagerHelper {
             DeploySystemContractCall({contractType: AP_RATE_KEEPER_FACTORY, version: 3_10, saveVersion: true}),
             DeploySystemContractCall({contractType: AP_LOSS_POLICY_FACTORY, version: 3_10, saveVersion: true})
         ];
-
         len = deployCalls.length;
-
         calls = new CrossChainCall[](len);
         for (uint256 i = 0; i < len; ++i) {
             calls[i] = _generateDeploySystemContractCall(
                 deployCalls[i].contractType, deployCalls[i].version, deployCalls[i].saveVersion
             );
         }
-
-        _submitBatchAndSign("System contracts", calls);
+        _submitBatchAndSign("Deploy system contracts", calls);
     }
 
     function _attachGlobalContracts() internal {
@@ -290,26 +316,6 @@ contract GlobalSetup is Test, InstanceManagerHelper {
         );
 
         contractsToUpload.push(
-            UploadableContract({
-                initCode: type(LinearInterestRateModelV3).creationCode,
-                contractType: AP_INTEREST_RATE_MODEL_LINEAR,
-                version: 3_10
-            })
-        );
-
-        contractsToUpload.push(
-            UploadableContract({
-                initCode: type(TumblerV3).creationCode,
-                contractType: AP_RATE_KEEPER_TUMBLER,
-                version: 3_10
-            })
-        );
-
-        contractsToUpload.push(
-            UploadableContract({initCode: type(GaugeV3).creationCode, contractType: AP_RATE_KEEPER_GAUGE, version: 3_10})
-        );
-
-        contractsToUpload.push(
             UploadableContract({initCode: type(BotListV3).creationCode, contractType: AP_BOT_LIST, version: 3_10})
         );
 
@@ -333,14 +339,6 @@ contract GlobalSetup is Test, InstanceManagerHelper {
             UploadableContract({
                 initCode: type(PriceOracleV3).creationCode,
                 contractType: AP_PRICE_ORACLE,
-                version: 3_10
-            })
-        );
-
-        contractsToUpload.push(
-            UploadableContract({
-                initCode: type(AliasedLossPolicyV3).creationCode,
-                contractType: AP_LOSS_POLICY_ALIASED,
                 version: 3_10
             })
         );
@@ -399,7 +397,6 @@ contract GlobalSetup is Test, InstanceManagerHelper {
     }
 
     function _setAdapters() internal {
-        // TODO: set adapters
         contractsToUpload.push(
             UploadableContract({
                 initCode: type(EqualizerRouterAdapter).creationCode,
@@ -593,15 +590,34 @@ contract GlobalSetup is Test, InstanceManagerHelper {
         );
     }
 
+    function _setInterestRateModels() internal {
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(LinearInterestRateModelV3).creationCode,
+                contractType: "IRM::LINEAR",
+                version: 3_10
+            })
+        );
+    }
+
+    function _setLossPolicies() internal {
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(AliasedLossPolicyV3).creationCode,
+                contractType: "LOSS_POLICY::ALIASED",
+                version: 3_10
+            })
+        );
+    }
+
     function _setPriceFeeds() internal {
-        // TODO: set price feeds
-        // contractsToUpload.push(
-        //     UploadableContract({
-        //         initCode: type(BPTWeightedPriceFeed).creationCode,
-        //         contractType: "PRICE_FEED::BALANCER_WEIGHTED",
-        //         version: 3_10
-        //     })
-        // );
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(BPTWeightedPriceFeed).creationCode,
+                contractType: "PRICE_FEED::BALANCER_WEIGHTED",
+                version: 3_10
+            })
+        );
 
         contractsToUpload.push(
             UploadableContract({
@@ -711,6 +727,20 @@ contract GlobalSetup is Test, InstanceManagerHelper {
             UploadableContract({
                 initCode: type(ERC4626PriceFeed).creationCode,
                 contractType: "PRICE_FEED::ERC4626",
+                version: 3_10
+            })
+        );
+    }
+
+    function _setRateKeepers() internal {
+        contractsToUpload.push(
+            UploadableContract({initCode: type(GaugeV3).creationCode, contractType: "RATE_KEEPER::GAUGE", version: 3_10})
+        );
+
+        contractsToUpload.push(
+            UploadableContract({
+                initCode: type(TumblerV3).creationCode,
+                contractType: "RATE_KEEPER::TUMBLER",
                 version: 3_10
             })
         );

@@ -206,11 +206,10 @@ contract MarketConfiguratorLegacy is MarketConfigurator {
         address rateKeeper = _rateKeeper(quotaKeeper);
         address lossPolicy = IContractsRegister(contractsRegister).getLossPolicy(pool);
 
-        // NOTE: authorize factories for contracts that might be used after the migration;
-        // legacy price oracle is left unauthorized since it's not gonna be used after the migration
+        // NOTE: authorize factories for contracts that might still be used after the migration; legacy price oracle
+        // is left unauthorized since it's not gonna be used, IRM is unauthorized since it's not configurable
         _authorizeFactory(factories.poolFactory, pool, pool);
         _authorizeFactory(factories.poolFactory, pool, quotaKeeper);
-        _authorizeFactory(factories.interestRateModelFactory, pool, interestRateModel);
         _authorizeFactory(factories.rateKeeperFactory, pool, rateKeeper);
         _authorizeFactory(factories.lossPolicyFactory, pool, lossPolicy);
 

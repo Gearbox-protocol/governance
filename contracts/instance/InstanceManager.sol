@@ -137,7 +137,7 @@ contract InstanceManager is Ownable, IInstanceManager {
             ? _getLegacyGearStakingAddress()
             : _deploySystemContract(contractType_, version_);
 
-        if (newSystemContract != address(0)) _setAddress(contractType_, newSystemContract, saveVersion);
+        _setAddress(contractType_, newSystemContract, saveVersion);
     }
 
     /// @notice Allows cross-chain governance to set a global address in the address provider
@@ -203,15 +203,12 @@ contract InstanceManager is Ownable, IInstanceManager {
     }
 
     /// @dev Deploys a system contract and returns its address
-    function _deploySystemContract(bytes32 _contractType, uint256 _version) internal returns (address) {
-        try ProxyCall(crossChainGovernanceProxy).proxyCall(
+    function _deploySystemContract(bytes32 contractType_, uint256 version_) internal returns (address) {
+        bytes memory result = ProxyCall(crossChainGovernanceProxy).proxyCall(
             address(bytecodeRepository),
-            abi.encodeCall(BytecodeRepository.deploy, (_contractType, _version, abi.encode(addressProvider), 0))
-        ) returns (bytes memory result) {
-            return abi.decode(result, (address));
-        } catch {
-            return address(0);
-        }
+            abi.encodeCall(BytecodeRepository.deploy, (contractType_, version_, abi.encode(addressProvider), 0))
+        );
+        return abi.decode(result, (address));
     }
 
     /// @dev Whether there is a legacy instance on this chain
@@ -229,7 +226,8 @@ contract InstanceManager is Ownable, IInstanceManager {
             return 0xe88846b6C85AA67688e453c7eaeeeb40F51e1F0a;
         } else if (block.chainid == 42161) {
             return 0xf3599BEfe8E79169Afd5f0b7eb0A1aA322F193D9;
+        } else {
+            revert();
         }
-        return address(0);
     }
 }

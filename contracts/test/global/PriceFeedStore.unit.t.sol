@@ -488,6 +488,7 @@ contract PriceFeedStoreTest is Test {
             abi.encodeWithSignature("isDeployedFromRepository(address)", address(ownableFeed)),
             abi.encode(true)
         );
+        vm.mockCall(address(ownableFeed), abi.encodeWithSignature("acceptOwnership()"), "");
         vm.mockCall(address(ownableFeed), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
 
         // Test Ownable feed owned by other (should fail)
@@ -497,19 +498,8 @@ contract PriceFeedStoreTest is Test {
             abi.encodeWithSignature("isDeployedFromRepository(address)", address(wrongOwnerFeed)),
             abi.encode(true)
         );
+        vm.mockCall(address(wrongOwnerFeed), abi.encodeWithSignature("acceptOwnership()"), "");
         vm.mockCall(address(wrongOwnerFeed), abi.encodeWithSignature("owner()"), abi.encode(makeAddr("other")));
-
-        // Test Ownable2Step feed with pending transfer (should fail)
-        MockPriceFeed ownable2StepFeed = new MockPriceFeed();
-        vm.mockCall(
-            address(bytecodeRepository),
-            abi.encodeWithSignature("isDeployedFromRepository(address)", address(ownable2StepFeed)),
-            abi.encode(true)
-        );
-        vm.mockCall(address(ownable2StepFeed), abi.encodeWithSignature("owner()"), abi.encode(address(store)));
-        vm.mockCall(
-            address(ownable2StepFeed), abi.encodeWithSignature("pendingOwner()"), abi.encode(makeAddr("pending"))
-        );
 
         vm.startPrank(owner);
 
@@ -524,12 +514,6 @@ contract PriceFeedStoreTest is Test {
             abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotOwnedByStore.selector, address(wrongOwnerFeed))
         );
         store.addPriceFeed(address(wrongOwnerFeed), 3600, "Wrong Owner Feed");
-
-        // Pending transfer should fail
-        vm.expectRevert(
-            abi.encodeWithSelector(IPriceFeedStore.PriceFeedIsNotOwnedByStore.selector, address(ownable2StepFeed))
-        );
-        store.addPriceFeed(address(ownable2StepFeed), 3600, "Ownable2Step Feed");
 
         vm.stopPrank();
     }
@@ -574,36 +558,20 @@ contract PriceFeedStoreTest is Test {
         store.configurePriceFeeds(calls);
     }
 
-    function test_PFS_24_configurePriceFeeds_reverts_on_ownership_transfer() public {
+    function test_PFS_24_configurePriceFeeds_reverts_on_renounceOwnership() public {
         vm.prank(owner);
         store.addPriceFeed(address(priceFeed), 3600, "ETH/USD");
-
-        Call[] memory transferCall = new Call[](1);
-        transferCall[0] =
-            Call(address(priceFeed), abi.encodeWithSignature("transferOwnership(address)", makeAddr("newOwner")));
 
         Call[] memory renounceCall = new Call[](1);
         renounceCall[0] = Call(address(priceFeed), abi.encodeWithSignature("renounceOwnership()"));
 
-        vm.startPrank(owner);
-
-        // Test transferOwnership
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IPriceFeedStore.ForbiddenConfigurationMethodException.selector, bytes4(transferCall[0].callData)
-            )
-        );
-        store.configurePriceFeeds(transferCall);
-
-        // Test renounceOwnership
         vm.expectRevert(
             abi.encodeWithSelector(
                 IPriceFeedStore.ForbiddenConfigurationMethodException.selector, bytes4(renounceCall[0].callData)
             )
         );
+        vm.prank(owner);
         store.configurePriceFeeds(renounceCall);
-
-        vm.stopPrank();
     }
 
     function test_PFS_25_removePriceFeed_works() public {

@@ -991,7 +991,7 @@ contract MarketConfigurator is DeployerTrait, IMarketConfigurator {
         }
     }
 
-    /// @dev Returns latest patch in the address provider for given contract type and minor version
+    /// @dev Returns latest patch in the address provider for given contract type with matching minor version
     function _getLatestPatch(bytes32 key, uint256 minorVersion) internal view returns (address) {
         return _getAddressOrRevert(key, IAddressProvider(addressProvider).getLatestPatchVersion(key, minorVersion));
     }

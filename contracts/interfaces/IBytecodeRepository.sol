@@ -16,19 +16,24 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     event AddAuditor(address indexed auditor, string name);
     event AddPublicDomain(bytes32 indexed domain);
     event AddSystemDomain(bytes32 indexed domain);
-    event AllowContract(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
-    event AuditBytecode(bytes32 indexed bytecodeHash, address indexed auditor, string reportUrl);
+    event AllowContract(bytes32 indexed bytecodeHash, bytes32 indexed contractType, uint256 indexed version);
+    event AuditBytecode(bytes32 indexed bytecodeHash, address indexed auditor, string reportUrl, bytes signature);
     event DeployContract(
-        bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver, address contractAddress
+        bytes32 indexed bytecodeHash, bytes32 indexed contractType, uint256 indexed version, address contractAddress
     );
-    event ForbidContract(bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver);
+    event ForbidContract(bytes32 indexed bytecodeHash, bytes32 indexed contractType, uint256 indexed version);
     event ForbidInitCode(bytes32 indexed initCodeHash);
     event RemoveAuditor(address indexed auditor);
-    event RemoveContractTypeOwner(bytes32 indexed cType);
-    event SetContractTypeOwner(bytes32 indexed cType, address indexed owner);
+    event RemoveContractTypeOwner(bytes32 indexed contractType);
+    event SetContractTypeOwner(bytes32 indexed contractType, address indexed owner);
     event SetTokenSpecificPostfix(address indexed token, bytes32 indexed postfix);
     event UploadBytecode(
-        bytes32 indexed bytecodeHash, bytes32 indexed cType, uint256 indexed ver, address author, string source
+        bytes32 indexed bytecodeHash,
+        bytes32 indexed contractType,
+        uint256 indexed version,
+        address author,
+        string source,
+        bytes signature
     );
 
     // ------ //
@@ -36,25 +41,25 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     // ------ //
 
     error AuditorIsNotApprovedException(address auditor);
-    error AuthorIsNotContractTypeOwnerException(bytes32 cType, address author);
-    error BytecodeIsAlreadyAllowedException(bytes32 cType, uint256 ver);
+    error AuthorIsNotContractTypeOwnerException(bytes32 contractType, address author);
+    error BytecodeIsAlreadyAllowedException(bytes32 contractType, uint256 version);
     error BytecodeIsAlreadySignedByAuditorException(bytes32 bytecodeHash, address auditor);
-    error BytecodeIsNotAllowedException(bytes32 cType, uint256 ver);
+    error BytecodeIsNotAllowedException(bytes32 contractType, uint256 version);
     error BytecodeIsNotAuditedException(bytes32 bytecodeHash);
     error BytecodeIsNotUploadedException(bytes32 bytecodeHash);
     error CallerIsNotBytecodeAuthorException(address caller);
     error ContractIsAlreadyDeployedException(address deployedContract);
-    error ContractTypeIsNotInPublicDomainException(bytes32 cType);
+    error ContractTypeIsNotInPublicDomainException(bytes32 contractType);
     error DomainIsAlreadyMarketAsPublicException(bytes32 domain);
     error DomainIsAlreadyMarketAsSystemException(bytes32 domain);
     error InitCodeIsForbiddenException(bytes32 initCodeHash);
     error InvalidAuditorSignatureException(address auditor);
     error InvalidAuthorSignatureException(address author);
     error InvalidBytecodeException(bytes32 bytecodeHash);
-    error InvalidContractTypeException(bytes32 cType);
+    error InvalidContractTypeException(bytes32 contractType);
     error InvalidDomainException(bytes32 domain);
-    error InvalidVersionException(bytes32 cType, uint256 ver);
-    error VersionNotFoundException(bytes32 cType);
+    error InvalidVersionException(bytes32 contractType, uint256 version);
+    error VersionNotFoundException(bytes32 contractType);
 
     // --------------- //
     // EIP-712 GETTERS //
@@ -76,13 +81,13 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     function isDeployedFromRepository(address deployedContract) external view returns (bool);
     function getDeployedContractBytecodeHash(address deployedContract) external view returns (bytes32);
     function computeAddress(
-        bytes32 cType,
-        uint256 ver,
+        bytes32 contractType,
+        uint256 version,
         bytes calldata constructorParams,
         bytes32 salt,
         address deployer
     ) external view returns (address);
-    function deploy(bytes32 cType, uint256 ver, bytes calldata constructorParams, bytes32 salt)
+    function deploy(bytes32 contractType, uint256 version, bytes calldata constructorParams, bytes32 salt)
         external
         returns (address);
 
@@ -108,11 +113,11 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     // ALLOWING BYTECODE //
     // ----------------- //
 
-    function getAllowedBytecodeHash(bytes32 cType, uint256 ver) external view returns (bytes32);
-    function getContractTypeOwner(bytes32 cType) external view returns (address);
+    function getAllowedBytecodeHash(bytes32 contractType, uint256 version) external view returns (bytes32);
+    function getContractTypeOwner(bytes32 contractType) external view returns (address);
     function allowSystemContract(bytes32 bytecodeHash) external;
     function allowPublicContract(bytes32 bytecodeHash) external;
-    function removePublicContractType(bytes32 cType) external;
+    function removePublicContractType(bytes32 contractType) external;
 
     // ------------------ //
     // DOMAINS MANAGEMENT //
@@ -152,8 +157,8 @@ interface IBytecodeRepository is IVersion, IImmutableOwnableTrait {
     // VERSION CONTROL //
     // --------------- //
 
-    function getVersions(bytes32 cType) external view returns (uint256[] memory);
-    function getLatestVersion(bytes32 cType) external view returns (uint256);
-    function getLatestMinorVersion(bytes32 cType, uint256 majorVersion) external view returns (uint256);
-    function getLatestPatchVersion(bytes32 cType, uint256 minorVersion) external view returns (uint256);
+    function getVersions(bytes32 contractType) external view returns (uint256[] memory);
+    function getLatestVersion(bytes32 contractType) external view returns (uint256);
+    function getLatestMinorVersion(bytes32 contractType, uint256 majorVersion) external view returns (uint256);
+    function getLatestPatchVersion(bytes32 contractType, uint256 minorVersion) external view returns (uint256);
 }
