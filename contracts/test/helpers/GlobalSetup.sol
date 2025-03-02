@@ -594,7 +594,7 @@ contract GlobalSetup is Test, InstanceManagerHelper {
         contractsToUpload.push(
             UploadableContract({
                 initCode: type(LinearInterestRateModelV3).creationCode,
-                contractType: "INTEREST_RATE_MODEL::LINEAR",
+                contractType: "IRM::LINEAR",
                 version: 3_10
             })
         );

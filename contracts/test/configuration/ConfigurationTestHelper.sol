@@ -146,9 +146,9 @@ contract ConfigurationTestHelper is Test, GlobalSetup {
 
         bytes32 bytecodeHash = _uploadByteCodeAndSign(type(MockLossPolicy).creationCode, "LOSS_POLICY::MOCK", 3_10);
 
-        calls[0] = _generateAllowSystemContractCall(bytecodeHash);
+        calls[0] = _generateAllowPublicContractCall(bytecodeHash);
 
-        _submitBatchAndSign("Allow system contracts", calls);
+        _submitBatchAndSign("Allow public contracts", calls);
     }
 
     function _deployTestPool() internal returns (address) {

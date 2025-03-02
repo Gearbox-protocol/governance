@@ -294,10 +294,9 @@ contract InstanceManagerTest is Test {
             "DEPLOYMENT_FAILED"
         );
 
+        vm.expectRevert("DEPLOYMENT_FAILED");
         vm.prank(crossChainGovernance);
         manager.deploySystemContract(contractType, version, false);
-        // Should not update address if deployment failed
-        assertEq(addressProvider.getAddressOrRevert(contractType, NO_VERSION_CONTROL), newContract);
     }
 
     /// @notice Test legacy GEAR staking deployment
